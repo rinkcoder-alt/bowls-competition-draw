@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
+from datetime import datetime
 
 st.set_page_config(page_title="Bowls England Draw Viewer", layout="centered")
 st.title("🏆 Bowls England Competition Draw Viewer")
@@ -16,11 +17,20 @@ season_map = {
 }
 
 available_seasons = list(season_map.keys())
-selected_season = st.selectbox("Select Season", available_seasons, index=4)
+
+# Get the current year
+current_year = datetime.now().year
+
+# Default season is set to the current year
+selected_season = str(current_year) if str(current_year) in available_seasons else available_seasons[-1]
 season_id = season_map[selected_season]
 
-# Stage selection
-stage_name = st.radio("Select Stage", ["Early Stages", "Final Stages"])
+# Select season, defaulting to the current year
+selected_season = st.selectbox("Select Season", available_seasons, index=available_seasons.index(selected_season))
+season_id = season_map[selected_season]
+
+# Stage selection with default "Early Stages"
+stage_name = st.radio("Select Stage", ["Early Stages", "Final Stages"], index=0)  # Default is "Early Stages"
 stage_id = "1" if stage_name == "Early Stages" else "2"
 
 # Fetch competition list from site
