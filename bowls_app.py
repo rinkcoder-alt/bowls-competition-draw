@@ -74,33 +74,42 @@ def fetch_results(competition_url):
         return df, headers
     return None, None
 
-def parse_matchup(raw_matchup):
-    # Regular expression pattern to match the format
-    pattern = r"(.*?)(\sV\s|\s-\s)(.*?)(\((.*?)\))"
-    match = re.match(pattern, raw_matchup.strip())
+def parse_matchup(matchup):
+    # Regular expressions to split the challenger, opponent, score, and ends
+    challenger_pattern = r"(.*?)(\(.*?\))\(Challenger\)"
+    opponent_pattern = r"V(.*?)(\(.*?\))"
+    score_pattern = r"(\d+)\s*-\s*(\d+)"
+    ends_pattern = r"Ends:\s*(\d+)"
+
+    challenger_match = re.search(challenger_pattern, matchup)
+    opponent_match = re.search(opponent_pattern, matchup)
+    score_match = re.search(score_pattern, matchup)
+    ends_match = re.search(ends_pattern, matchup)
+
+    challenger_name = challenger_match.group(1).strip() if challenger_match else "Unknown"
+    challenger_location = challenger_match.group(2).strip() if challenger_match else "Unknown"
     
-    if match:
-        person_1, separator, person_2, location_2 = match.groups()
-        person_1 = person_1.strip()
-        person_2 = person_2.strip()
-        location_2 = location_2.strip()
-        
-        if separator.strip() == "V":
-            challenger = person_1
-            opponent = person_2
-        else:
-            challenger = person_2
-            opponent = person_1
-        
-        score = "No Score"
-        if " - " in raw_matchup:
-            score_match = re.search(r"(\d+)\s-\s(\d+)", raw_matchup)
-            if score_match:
-                score = f"{score_match.group(1)} - {score_match.group(2)}"
-        
-        return challenger, opponent, score, "N/A"
+    opponent_name = opponent_match.group(1).strip() if opponent_match else "Unknown"
+    opponent_location = opponent_match.group(2).strip() if opponent_match else "Unknown"
+    
+    score = f"{score_match.group(1)} - {score_match.group(2)}" if score_match else "No Score"
+    ends = ends_match.group(1) if ends_match else "N/A"
+    
+    # If challenger comes first
+    if "Challenger" in matchup:
+        challenger = f"{challenger_name} {challenger_location}"
+        opponent = f"{opponent_name} {opponent_location}"
     else:
-        return "Unknown Unknown", "Unknown Unknown", "No Score", "N/A"
+        # If opponent comes first
+        challenger = f"{opponent_name} {opponent_location}"
+        opponent = f"{challenger_name} {challenger_location}"
+
+    return {
+        "Challenger": challenger,
+        "Opponent": opponent,
+        "Score": score,
+        "Ends": ends
+    }
 
 comps = fetch_competitions(season_id, stage_id)
 
@@ -122,14 +131,10 @@ if comps:
         if results_df is not None and rounds:
             selected_round = st.selectbox("Select Round", rounds)
             if selected_round in results_df.columns:
-                matchups = results_df[selected_round].dropna()  # Drop empty values
-                parsed_matchups = []
-
-                for matchup in matchups:
-                    challenger, opponent, score, ends = parse_matchup(matchup)
-                    parsed_matchups.append([challenger, opponent, score, ends])
-                
-                parsed_df = pd.DataFrame(parsed_matchups, columns=["Challenger", "Opponent", "Score", "Ends"])
+                # Filtering the selected round and applying the parse_matchup function
+                selected_column = results_df[selected_round].dropna()  # Remove any empty values
+                parsed_data = selected_column.apply(parse_matchup)
+                parsed_df = pd.DataFrame(parsed_data.tolist())
                 st.dataframe(parsed_df)
             else:
                 st.warning(f"No data available for round: {selected_round}")
