@@ -42,8 +42,9 @@ def fetch_competitions(season_id, stage_id):
                 # Extract competition name from the <strong> tag
                 comp_name = comp_name_div.find("strong").text.strip().replace('> ', '')  # Clean up the name
                 comp_url = link['href']
+                comp_id = comp_url.split('/')[-1]  # Get competition ID
                 full_url = f"https://bowlsenglandcomps.com{comp_url}"
-                comps[comp_name] = full_url
+                comps[comp_name] = (comp_id, full_url)
     
     return comps
 
@@ -70,7 +71,7 @@ comps = fetch_competitions(season_id, stage_id)
 # Competition selection with search functionality
 if comps:
     selected_comp = st.selectbox("Select Competition (searchable)", list(comps.keys()))
-    selected_comp_url = comps[selected_comp]
+    selected_comp_id, selected_comp_url = comps[selected_comp]
 
     # Fetch counties based on the selected competition
     counties = fetch_counties(selected_comp_url)
@@ -78,13 +79,14 @@ if comps:
     # County selection with search functionality
     if counties:
         selected_county = st.selectbox("Select County (searchable)", list(counties.keys()))
-        county_id = counties[selected_county]
-        competition_id = selected_comp_url.split('/')[-1]
+        selected_county_id = counties[selected_county]
+
+        # Construct the URL for the selected competition and county
+        final_url = f"https://bowlsenglandcomps.com/competition/area-fixture/{selected_comp_id}/{selected_county_id}"
 
         st.write(f"You've selected **{selected_comp}** for **{selected_county}**.")
-        st.write(f"County ID: {county_id} | Competition ID: {competition_id}")
-        # Link to the competition for the selected county
-        st.write(f"Link to the selected county's competition: [Click here]({selected_comp_url})")
+        st.write(f"Competition ID: {selected_comp_id} | County ID: {selected_county_id}")
+        st.write(f"Final URL: [Click here to view the competition]({final_url})")
     else:
         st.warning("⚠️ No counties found for the selected competition.")
 else:
