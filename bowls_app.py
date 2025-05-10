@@ -36,17 +36,17 @@ def fetch_counties(season_id, stage_id):
     counties = {}
     for county_link in county_links:
         county_name = county_link.text.strip()
-        county_url = county_link['href']
+        county_url = county_link['href'].strip().split("/")[-1]  # Extract county_id from URL
         counties[county_name] = county_url
     
     return counties
 
 # Fetch competition list from site
 @st.cache_data(show_spinner=False)
-def fetch_competitions(season_id, stage_id, county_url=None):
-    url = f"https://bowlsenglandcomps.com/season/{season_id}/{stage_id}"
-    if county_url:
-        url += f"/{county_url}"
+def fetch_competitions(competition_id, county_id):
+    url = f"https://bowlsenglandcomps.com/competition/area-fixture/{competition_id}/{county_id}"
+    
+    st.write(f"Fetching competitions from: {url}")  # Debugging line to check URL
     
     res = requests.get(url)
     soup = BeautifulSoup(res.text, "html.parser")
@@ -68,26 +68,31 @@ def fetch_competitions(season_id, stage_id, county_url=None):
     
     return comps
 
-# Fetch counties
+# Fetch counties for the selected season and stage
 counties = fetch_counties(season_id, stage_id)
 
 # If counties are available, allow user to select a county
 if counties:
     selected_county = st.selectbox("Select County", list(counties.keys()))
-    county_url = counties[selected_county]
+    county_id = counties[selected_county]
+    competition_id = "212"  # This is just an example for the competition ID, this can be dynamic
 else:
-    county_url = None
+    county_id = None
+    competition_id = None
 
 # Fetch competitions based on selected season, stage, and county
-comps = fetch_competitions(season_id, stage_id, county_url)
+if county_id:
+    comps = fetch_competitions(competition_id, county_id)
 
-if comps:
-    # Create a selectable dropdown for competitions
-    selected_comp = st.selectbox("Select Competition", list(comps.keys()))
-    
-    # Display the selected competition's link
-    if selected_comp:
-        st.write(f"### You selected: {selected_comp}")
-        st.write(f"Link to competition: [Click here]({comps[selected_comp]})")
+    if comps:
+        # Create a selectable dropdown for competitions
+        selected_comp = st.selectbox("Select Competition", list(comps.keys()))
+        
+        # Display the selected competition's link
+        if selected_comp:
+            st.write(f"### You selected: {selected_comp}")
+            st.write(f"Link to competition: [Click here]({comps[selected_comp]})")
+    else:
+        st.warning("⚠️ No competitions found for this season, stage, and county.")
 else:
-    st.warning("⚠️ No competitions found for this season, stage, and county.")
+    st.warning("⚠️ No counties found for this season and stage.")
