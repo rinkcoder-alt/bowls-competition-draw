@@ -29,7 +29,13 @@ def fetch_competitions(season_id, stage_id):
     url = f"https://bowlsenglandcomps.com/season/{season_id}/{stage_id}"
     res = requests.get(url)
     soup = BeautifulSoup(res.text, "html.parser")
-    comp_links = soup.select("a.card-body")
+    
+    # Updated selector for competition links (using the correct class)
+    comp_links = soup.select("a.pull-left.competition-name")
+    
+    # Debug: Print out the fetched links for inspection
+    st.write("Fetched competition links:", comp_links)
+    
     return {link.text.strip(): link['href'] for link in comp_links}
 
 comps = fetch_competitions(season_id, stage_id)
