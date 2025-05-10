@@ -102,9 +102,9 @@ def fetch_results(competition_url):
         
         # Create a dataframe for display
         df = pd.DataFrame(rows, columns=headers)
-        return df
+        return df, headers
     else:
-        return None
+        return None, None
 
 # Fetch competitions for the selected season and stage
 comps = fetch_competitions(season_id, stage_id)
@@ -126,16 +126,22 @@ if comps:
         final_url = f"https://bowlsenglandcomps.com/competition/area-fixture/{selected_comp_id}/{selected_county_id}"
 
         # Fetch competition results
-        results_df = fetch_results(final_url)
+        results_df, rounds = fetch_results(final_url)
 
         st.write(f"You've selected **{selected_comp}** for **{selected_county}**.")
         st.write(f"Competition ID: {selected_comp_id} | County ID: {selected_county_id}")
         st.write(f"Final URL: [Click here to view the competition]({final_url})")
 
-        # Display results in a table
-        if results_df is not None:
-            st.write("Competition Results:")
-            st.dataframe(results_df)  # Display the results in a table
+        # Round selection
+        if results_df is not None and rounds:
+            selected_round = st.selectbox("Select Round", rounds)
+            
+            # Display only the selected round
+            if selected_round in results_df.columns:
+                st.write(f"Displaying results for **{selected_round}**:")
+                st.dataframe(results_df[["Matchup", selected_round]])  # Displaying only the selected round's data
+            else:
+                st.warning("⚠️ No data available for the selected round.")
         else:
             st.warning("⚠️ No results found for this competition and county.")
     else:
