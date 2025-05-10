@@ -93,7 +93,7 @@ if comps:
         if results_df is not None and rounds:
             selected_round = st.selectbox("Select Round", rounds)
             if selected_round in results_df.columns:
-                st.dataframe(results_df[["Matchup", selected_round]])
+                st.dataframe(results_df[[selected_round]])
             else:
                 st.warning(f"No data available for round: {selected_round}")
         else:
