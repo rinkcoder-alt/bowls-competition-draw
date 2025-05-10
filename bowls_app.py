@@ -93,7 +93,8 @@ if comps:
         if results_df is not None and rounds:
             selected_round = st.selectbox("Select Round", rounds)
             if selected_round in results_df.columns:
-                st.dataframe(results_df[[selected_round]])
+                filtered_df = results_df[[selected_round]].replace("", pd.NA).dropna()
+                st.dataframe(filtered_df)
             else:
                 st.warning(f"No data available for round: {selected_round}")
         else:
