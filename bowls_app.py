@@ -23,36 +23,15 @@ season_id = season_map[selected_season]
 stage_name = st.radio("Select Stage", ["Early Stages", "Final Stages"])
 stage_id = "1" if stage_name == "Early Stages" else "2"
 
-# Fetch county list from site
+# Fetch competition list from site
 @st.cache_data(show_spinner=False)
-def fetch_counties(season_id, stage_id):
+def fetch_competitions(season_id, stage_id):
     url = f"https://bowlsenglandcomps.com/season/{season_id}/{stage_id}"
     res = requests.get(url)
     soup = BeautifulSoup(res.text, "html.parser")
     
-    # Find all <a> tags with the class "area-fixture-link" for counties
-    county_links = soup.find_all("a", class_="area-fixture-link")
-    
-    counties = {}
-    for county_link in county_links:
-        county_name = county_link.text.strip()
-        county_url = county_link['href'].strip().split("/")[-1]  # Extract county_id from URL
-        counties[county_name] = county_url
-    
-    return counties
-
-# Fetch competition list from site
-@st.cache_data(show_spinner=False)
-def fetch_competitions(competition_id, county_id):
-    url = f"https://bowlsenglandcomps.com/competition/area-fixture/{competition_id}/{county_id}"
-    
-    st.write(f"Fetching competitions from: {url}")  # Debugging line to check URL
-    
-    res = requests.get(url)
-    soup = BeautifulSoup(res.text, "html.parser")
-    
-    # Select competition links and competition names
-    comp_links = soup.find_all("a", href=True)  # Find all <a> tags with href
+    # Find all <a> tags with the class "competition-name" for competitions
+    comp_links = soup.find_all("a", href=True)
     
     comps = {}
     for link in comp_links:
@@ -68,31 +47,43 @@ def fetch_competitions(competition_id, county_id):
     
     return comps
 
-# Fetch counties for the selected season and stage
-counties = fetch_counties(season_id, stage_id)
+# Fetch counties for the selected competition
+@st.cache_data(show_spinner=False)
+def fetch_counties(competition_url):
+    res = requests.get(competition_url)
+    soup = BeautifulSoup(res.text, "html.parser")
+    
+    # Find all <a> tags with the class "area-fixture-link" for counties
+    county_links = soup.find_all("a", class_="area-fixture-link")
+    
+    counties = {}
+    for county_link in county_links:
+        county_name = county_link.text.strip()
+        county_url = county_link['href'].strip().split("/")[-1]  # Extract county_id from URL
+        counties[county_name] = county_url
+    
+    return counties
 
-# If counties are available, allow user to select a county
-if counties:
-    selected_county = st.selectbox("Select County", list(counties.keys()))
-    county_id = counties[selected_county]
-    competition_id = "212"  # This is just an example for the competition ID, this can be dynamic
-else:
-    county_id = None
-    competition_id = None
+# Fetch competitions for the selected season and stage
+comps = fetch_competitions(season_id, stage_id)
 
-# Fetch competitions based on selected season, stage, and county
-if county_id:
-    comps = fetch_competitions(competition_id, county_id)
+# Competition selection
+if comps:
+    selected_comp = st.selectbox("Select Competition", list(comps.keys()))
+    selected_comp_url = comps[selected_comp]
 
-    if comps:
-        # Create a selectable dropdown for competitions
-        selected_comp = st.selectbox("Select Competition", list(comps.keys()))
-        
-        # Display the selected competition's link
-        if selected_comp:
-            st.write(f"### You selected: {selected_comp}")
-            st.write(f"Link to competition: [Click here]({comps[selected_comp]})")
+    # Fetch counties based on the selected competition
+    counties = fetch_counties(selected_comp_url)
+    if counties:
+        selected_county = st.selectbox("Select County", list(counties.keys()))
+        county_id = counties[selected_county]
+        competition_id = selected_comp_url.split('/')[-1]
+
+        st.write(f"You've selected **{selected_comp}** for **{selected_county}**.")
+        st.write(f"County ID: {county_id} | Competition ID: {competition_id}")
+        # Link to the competition for the selected county
+        st.write(f"Link to the selected county's competition: [Click here]({selected_comp_url})")
     else:
-        st.warning("⚠️ No competitions found for this season, stage, and county.")
+        st.warning("⚠️ No counties found for the selected competition.")
 else:
-    st.warning("⚠️ No counties found for this season and stage.")
+    st.warning("⚠️ No competitions found for this season and stage.")
