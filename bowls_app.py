@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 
+st.set_page_config(page_title="Bowls England Draw Viewer", layout="centered")
 st.title("🏆 Bowls England Competition Draw Viewer")
 
 # Season mapping
@@ -14,14 +15,15 @@ season_map = {
     "2025": "6"
 }
 
-available_seasons = list(season_map.keys())  # include all seasons for now
+available_seasons = list(season_map.keys())
 selected_season = st.selectbox("Select Season", available_seasons, index=4)
 season_id = season_map[selected_season]
 
-# Choose Stage
+# Stage selection
 stage_name = st.radio("Select Stage", ["Early Stages", "Final Stages"])
 stage_id = "1" if stage_name == "Early Stages" else "2"
 
+# Fetch competition list from site
 @st.cache_data(show_spinner=False)
 def fetch_competitions(season_id, stage_id):
     url = f"https://bowlsenglandcomps.com/season/{season_id}/{stage_id}"
@@ -36,6 +38,7 @@ if comps:
     selected_comp = st.selectbox("Select Competition", list(comps.keys()))
     comp_url = f"https://bowlsenglandcomps.com{comps[selected_comp]}"
 
+    # Fetch counties for selected competition
     @st.cache_data(show_spinner=False)
     def fetch_counties(comp_url):
         res = requests.get(comp_url)
@@ -49,10 +52,14 @@ if comps:
         selected_county = st.selectbox("Select County", list(counties.keys()))
         full_url = f"https://bowlsenglandcomps.com{counties[selected_county]}"
 
+        # Display constructed URL
+        st.markdown(f"🔗 **Draw URL:** [Open Draw Page]({full_url})", unsafe_allow_html=True)
+
+        # Button to show draw
         if st.button("Show Draw"):
             st.success("Opening draw page below 👇")
             st.markdown(f"[View Draw for {selected_county} - {stage_name}]({full_url})", unsafe_allow_html=True)
     else:
-        st.warning("No counties found for this competition.")
+        st.warning("⚠️ No counties found for this competition.")
 else:
-    st.warning("No competitions found for this season/stage.")
+    st.warning("⚠️ No competitions found for this season and stage.")
