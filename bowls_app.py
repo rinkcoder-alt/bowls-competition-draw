@@ -67,15 +67,17 @@ def fetch_counties(competition_url):
 # Fetch competitions for the selected season and stage
 comps = fetch_competitions(season_id, stage_id)
 
-# Competition selection
+# Competition selection with search functionality
 if comps:
-    selected_comp = st.selectbox("Select Competition", list(comps.keys()))
+    selected_comp = st.selectbox("Select Competition (searchable)", list(comps.keys()))
     selected_comp_url = comps[selected_comp]
 
     # Fetch counties based on the selected competition
     counties = fetch_counties(selected_comp_url)
+    
+    # County selection with search functionality
     if counties:
-        selected_county = st.selectbox("Select County", list(counties.keys()))
+        selected_county = st.selectbox("Select County (searchable)", list(counties.keys()))
         county_id = counties[selected_county]
         competition_id = selected_comp_url.split('/')[-1]
 
