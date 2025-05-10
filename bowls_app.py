@@ -76,8 +76,8 @@ def fetch_results(competition_url):
 
 def extract_match_details(matchup):
     # Extract the Challenger and Opponent details from the matchup string
-    challenger_match = re.search(r"([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)*)(?=\(.*\)\(Challenger\))", matchup)
-    opponent_match = re.search(r"([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)*)(?=\(.*\))", matchup)
+    challenger_match = re.search(r"([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)*)(?=\s*\(Challenger\))", matchup)
+    opponent_match = re.search(r"([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)*)(?=\(?!.*\(Challenger\))", matchup)
 
     challenger_name = challenger_match.group(1).strip() if challenger_match else "Unknown"
     opponent_name = opponent_match.group(1).strip() if opponent_match else "Unknown"
@@ -112,16 +112,23 @@ if comps:
             selected_round = st.selectbox("Select Round", rounds)
             if selected_round in results_df.columns:
                 st.write(f"Results for {selected_round}:")
-                matchups = results_df[selected_round].dropna().tolist()  # Remove blank values
 
-                # Displaying the matchups with extracted details
+                matchups = results_df[selected_round].dropna().tolist()  # Remove blank values
+                
+                # Extract details and create a structured list for the DataFrame
+                extracted_data = []
                 for matchup in matchups:
                     challenger, opponent, score, ends = extract_match_details(matchup)
-                    st.write(f"**Challenger**: {challenger}")
-                    st.write(f"**Opponent**: {opponent}")
-                    st.write(f"**Score**: {score}")
-                    st.write(f"**Ends**: {ends}")
-                    st.write("---")
+                    extracted_data.append({
+                        "Challenger": challenger,
+                        "Opponent": opponent,
+                        "Score": score,
+                        "Ends": ends
+                    })
+
+                # Create a DataFrame to display the results in a table
+                matchups_df = pd.DataFrame(extracted_data)
+                st.dataframe(matchups_df)
             else:
                 st.warning(f"No data available for round: {selected_round}")
         else:
