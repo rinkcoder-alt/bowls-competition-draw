@@ -23,10 +23,31 @@ season_id = season_map[selected_season]
 stage_name = st.radio("Select Stage", ["Early Stages", "Final Stages"])
 stage_id = "1" if stage_name == "Early Stages" else "2"
 
+# Fetch county list from site
+@st.cache_data(show_spinner=False)
+def fetch_counties(season_id, stage_id):
+    url = f"https://bowlsenglandcomps.com/season/{season_id}/{stage_id}"
+    res = requests.get(url)
+    soup = BeautifulSoup(res.text, "html.parser")
+    
+    # Find all <a> tags with the class "area-fixture-link" for counties
+    county_links = soup.find_all("a", class_="area-fixture-link")
+    
+    counties = {}
+    for county_link in county_links:
+        county_name = county_link.text.strip()
+        county_url = county_link['href']
+        counties[county_name] = county_url
+    
+    return counties
+
 # Fetch competition list from site
 @st.cache_data(show_spinner=False)
-def fetch_competitions(season_id, stage_id):
+def fetch_competitions(season_id, stage_id, county_url=None):
     url = f"https://bowlsenglandcomps.com/season/{season_id}/{stage_id}"
+    if county_url:
+        url += f"/{county_url}"
+    
     res = requests.get(url)
     soup = BeautifulSoup(res.text, "html.parser")
     
@@ -47,7 +68,18 @@ def fetch_competitions(season_id, stage_id):
     
     return comps
 
-comps = fetch_competitions(season_id, stage_id)
+# Fetch counties
+counties = fetch_counties(season_id, stage_id)
+
+# If counties are available, allow user to select a county
+if counties:
+    selected_county = st.selectbox("Select County", list(counties.keys()))
+    county_url = counties[selected_county]
+else:
+    county_url = None
+
+# Fetch competitions based on selected season, stage, and county
+comps = fetch_competitions(season_id, stage_id, county_url)
 
 if comps:
     # Create a selectable dropdown for competitions
@@ -58,4 +90,4 @@ if comps:
         st.write(f"### You selected: {selected_comp}")
         st.write(f"Link to competition: [Click here]({comps[selected_comp]})")
 else:
-    st.warning("⚠️ No competitions found for this season and stage.")
+    st.warning("⚠️ No competitions found for this season, stage, and county.")
