@@ -41,35 +41,8 @@ def fetch_competitions(season_id, stage_id):
 comps = fetch_competitions(season_id, stage_id)
 
 if comps:
-    selected_comp = st.selectbox("Select Competition", list(comps.keys()))
-    
-    # Fix the URL format by stripping the season part
-    raw_href = comps[selected_comp]
-    comp_id = raw_href.split("/")[-1]  # Get the competition ID
-    comp_url = f"https://bowlsenglandcomps.com/competition/{comp_id}"  # Correct format
-
-    # Fetch counties for selected competition
-    @st.cache_data(show_spinner=False)
-    def fetch_counties(comp_url):
-        res = requests.get(comp_url)
-        soup = BeautifulSoup(res.text, "html.parser")
-        county_links = soup.select("a.card-body")
-        return {link.text.strip(): link['href'] for link in county_links}
-
-    counties = fetch_counties(comp_url)
-
-    if counties:
-        selected_county = st.selectbox("Select County", list(counties.keys()))
-        full_url = f"https://bowlsenglandcomps.com{counties[selected_county]}"
-
-        # Display constructed URL
-        st.markdown(f"🔗 **Draw URL:** [Open Draw Page]({full_url})", unsafe_allow_html=True)
-
-        # Button to show draw
-        if st.button("Show Draw"):
-            st.success("Opening draw page below 👇")
-            st.markdown(f"[View Draw for {selected_county} - {stage_name}]({full_url})", unsafe_allow_html=True)
-    else:
-        st.warning("⚠️ No counties found for this competition.")
+    st.write("### Available Competitions:")
+    for comp_name, comp_url in comps.items():
+        st.write(f"- {comp_name}: [Link]({f'https://bowlsenglandcomps.com{comp_url}'})")
 else:
     st.warning("⚠️ No competitions found for this season and stage.")
