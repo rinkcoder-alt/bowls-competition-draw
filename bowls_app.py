@@ -36,7 +36,11 @@ comps = fetch_competitions(season_id, stage_id)
 
 if comps:
     selected_comp = st.selectbox("Select Competition", list(comps.keys()))
-    comp_url = f"https://bowlsenglandcomps.com{comps[selected_comp]}"
+    
+    # Fix the URL format by stripping the season part
+    raw_href = comps[selected_comp]
+    comp_id = raw_href.split("/")[-1]  # Get the competition ID
+    comp_url = f"https://bowlsenglandcomps.com/competition/{comp_id}"  # Correct format
 
     # Fetch counties for selected competition
     @st.cache_data(show_spinner=False)
