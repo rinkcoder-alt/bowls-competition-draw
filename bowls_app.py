@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 
 st.title("🏆 Bowls England Competition Draw Viewer")
 
-# Map seasons to IDs used in the URL
+# Season mapping
 season_map = {
     "2020": "1",
     "2021": "2",
@@ -14,45 +14,45 @@ season_map = {
     "2025": "6"
 }
 
-# Dropdown to select season
-selected_season = st.selectbox("Select Season", list(season_map.keys()), index=5)
+available_seasons = list(season_map.keys())  # include all seasons for now
+selected_season = st.selectbox("Select Season", available_seasons, index=4)
 season_id = season_map[selected_season]
 
-# Scrape competitions for the selected season
+# Choose Stage
+stage_name = st.radio("Select Stage", ["Early Stages", "Final Stages"])
+stage_id = "1" if stage_name == "Early Stages" else "2"
+
 @st.cache_data(show_spinner=False)
-def fetch_competitions(season_id):
-    url = f"https://bowlsenglandcomps.com/season/{season_id}"
+def fetch_competitions(season_id, stage_id):
+    url = f"https://bowlsenglandcomps.com/season/{season_id}/{stage_id}"
     res = requests.get(url)
     soup = BeautifulSoup(res.text, "html.parser")
     comp_links = soup.select("a.card-body")
-    comps = {link.text.strip(): link['href'] for link in comp_links}
-    return comps
+    return {link.text.strip(): link['href'] for link in comp_links}
 
-comps = fetch_competitions(season_id)
+comps = fetch_competitions(season_id, stage_id)
 
 if comps:
-    selected_competition = st.selectbox("Select Competition", list(comps.keys()))
-    comp_url = f"https://bowlsenglandcomps.com{comps[selected_competition]}"
+    selected_comp = st.selectbox("Select Competition", list(comps.keys()))
+    comp_url = f"https://bowlsenglandcomps.com{comps[selected_comp]}"
 
-    # Scrape counties from selected competition
     @st.cache_data(show_spinner=False)
     def fetch_counties(comp_url):
         res = requests.get(comp_url)
         soup = BeautifulSoup(res.text, "html.parser")
         county_links = soup.select("a.card-body")
-        counties = {link.text.strip(): link['href'] for link in county_links}
-        return counties
+        return {link.text.strip(): link['href'] for link in county_links}
 
     counties = fetch_counties(comp_url)
 
     if counties:
         selected_county = st.selectbox("Select County", list(counties.keys()))
-        county_url = f"https://bowlsenglandcomps.com{counties[selected_county]}"
+        full_url = f"https://bowlsenglandcomps.com{counties[selected_county]}"
 
         if st.button("Show Draw"):
             st.success("Opening draw page below 👇")
-            st.markdown(f"[Click here to view draw for {selected_county}]({county_url})", unsafe_allow_html=True)
+            st.markdown(f"[View Draw for {selected_county} - {stage_name}]({full_url})", unsafe_allow_html=True)
     else:
         st.warning("No counties found for this competition.")
 else:
-    st.warning("No competitions found for this season.")
+    st.warning("No competitions found for this season/stage.")
