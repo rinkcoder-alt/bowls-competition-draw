@@ -50,8 +50,12 @@ def fetch_competitions(season_id, stage_id):
 comps = fetch_competitions(season_id, stage_id)
 
 if comps:
-    st.write("### Available Competitions:")
-    for comp_name, comp_url in comps.items():
-        st.write(f"- {comp_name}: [Link]({comp_url})")
+    # Create a selectable dropdown for competitions
+    selected_comp = st.selectbox("Select Competition", list(comps.keys()))
+    
+    # Display the selected competition's link
+    if selected_comp:
+        st.write(f"### You selected: {selected_comp}")
+        st.write(f"Link to competition: [Click here]({comps[selected_comp]})")
 else:
     st.warning("⚠️ No competitions found for this season and stage.")
