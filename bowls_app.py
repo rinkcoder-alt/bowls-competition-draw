@@ -95,9 +95,18 @@ def parse_matchup(matchup):
     score = f"{score_match.group(1)} - {score_match.group(2)}" if score_match else "No Score"
     ends = ends_match.group(1) if ends_match else "N/A"
     
+    # If challenger comes first
+    if "Challenger" in matchup:
+        challenger = f"{challenger_name} {challenger_location}"
+        opponent = f"{opponent_name} {opponent_location}"
+    else:
+        # If opponent comes first
+        challenger = f"{opponent_name} {opponent_location}"
+        opponent = f"{challenger_name} {challenger_location}"
+
     return {
-        "Challenger": f"{challenger_name} {challenger_location}",
-        "Opponent": f"{opponent_name} {opponent_location}",
+        "Challenger": challenger,
+        "Opponent": opponent,
         "Score": score,
         "Ends": ends
     }
