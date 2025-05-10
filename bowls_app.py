@@ -75,22 +75,18 @@ def fetch_results(competition_url):
     return None, None
 
 def extract_match_details(matchup):
-    # Extract the Challenger and Opponent details from the matchup string
-    challenger_match = re.search(r"([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)*)(?=\s*\(Challenger\))", matchup)
-    opponent_match = re.search(r"([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)*)(?=\s*(?!(?:\(Challenger\)))\s*\()", matchup)
-
-    # Print for debugging
-    st.write(f"Raw Matchup: {matchup}")
+    # Extract names (Challenger and Opponent) and their locations
+    # Regex to remove the location from the names
+    names_with_location = re.findall(r"([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)*)\s*\((.*?)\)", matchup)
     
-    # Extract names
-    if challenger_match and opponent_match:
-        challenger_name = challenger_match.group(1).strip()
-        opponent_name = opponent_match.group(1).strip()
+    if len(names_with_location) < 2:
+        # If we can't find both names with location, return Unknown for both
+        challenger_name = "Unknown"
+        opponent_name = "Unknown"
     else:
-        # Handle case where Challenger and Opponent are not explicitly labeled
-        names = re.findall(r"([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)*)", matchup)
-        challenger_name = names[0].strip() if len(names) > 0 else "Unknown"
-        opponent_name = names[1].strip() if len(names) > 1 else "Unknown"
+        # Assume the first name in the list is Challenger and the second one is Opponent
+        challenger_name, challenger_location = names_with_location[0]
+        opponent_name, opponent_location = names_with_location[1]
 
     # Extract Score and Ends if available
     score_match = re.search(r"(\d+)\s*-\s*(\d+)", matchup)
