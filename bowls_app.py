@@ -4,101 +4,87 @@ from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="Bowls England Draw Viewer", layout="centered")
-st.title("🏆 Bowls England Competition Draw Viewer")
+st.set_page_config(page_title="Bowls England Draw Viewer")
+st.title("Bowls England Competition Draw Viewer")
 
-# Season mapping
-season_map = {
-    "2020": "1",
-    "2021": "2",
-    "2022": "3",
-    "2023": "4",
-    "2024": "5",
-    "2025": "6"
-}
+# --- Utility functions ---
+def get_competitions(season: str, stage: str):
+    url = f"https://bowlsenglandcomps.com/season/{season}/{stage}"
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, "html.parser")
+    comps = soup.find_all("a", href=True)
+    comp_dict = {}
+    for a in comps:
+        if "/competition/" in a['href'] and a.find("div", class_="pull-left competition-name"):
+            name = a.find("div", class_="pull-left competition-name").get_text(strip=True).replace(">", "").strip()
+            comp_id = a['href'].split("/")[-1]
+            comp_dict[name] = comp_id
+    return comp_dict
 
-available_seasons = list(season_map.keys())
+def get_counties(comp_id):
+    url = f"https://bowlsenglandcomps.com/competition/{comp_id}"
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, "html.parser")
+    areas = soup.find_all("a", class_="area-fixture-link")
+    county_dict = {}
+    for area in areas:
+        name = area.get_text(strip=True)
+        county_id = area['href'].split("/")[-1]
+        county_dict[name] = county_id
+    return county_dict
 
-# Default to current year
-current_year = datetime.now().year
-default_season = str(current_year) if str(current_year) in available_seasons else available_seasons[-1]
+def get_results_table(comp_id, county_id):
+    url = f"https://bowlsenglandcomps.com/competition/area-fixture/{comp_id}/{county_id}"
+    st.markdown(f"[🔗 View Full Table]({url})")
 
-selected_season = st.selectbox("Select Season", available_seasons, index=available_seasons.index(default_season))
-season_id = season_map[selected_season]
-
-stage_name = st.radio("Select Stage", ["Early Stages", "Final Stages"], index=0)
-stage_id = "1" if stage_name == "Early Stages" else "2"
-
-@st.cache_data(show_spinner=False)
-def fetch_competitions(season_id, stage_id):
-    url = f"https://bowlsenglandcomps.com/season/{season_id}/{stage_id}"
-    res = requests.get(url)
-    soup = BeautifulSoup(res.text, "html.parser")
-    comp_links = soup.find_all("a", href=True)
-    comps = {}
-    for link in comp_links:
-        if "/competition/" in link['href']:
-            comp_name_div = link.find("div", class_="pull-left competition-name")
-            if comp_name_div:
-                comp_name = comp_name_div.find("strong").text.strip().replace('> ', '')
-                comp_id = link['href'].split('/')[-1]
-                full_url = f"https://bowlsenglandcomps.com{link['href']}"
-                comps[comp_name] = (comp_id, full_url)
-    return comps
-
-@st.cache_data(show_spinner=False)
-def fetch_counties(competition_url):
-    res = requests.get(competition_url)
-    soup = BeautifulSoup(res.text, "html.parser")
-    county_links = soup.find_all("a", class_="area-fixture-link")
-    counties = {}
-    for link in county_links:
-        name = link.text.strip()
-        county_id = link['href'].split("/")[-1]
-        counties[name] = county_id
-    return counties
-
-@st.cache_data(show_spinner=False)
-def fetch_results(competition_url):
-    res = requests.get(competition_url)
-    soup = BeautifulSoup(res.text, "html.parser")
-    table = soup.find("table", class_="table")
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, "html.parser")
+    table = soup.find("table")
     if table:
-        headers = [th.text.strip() for th in table.find("thead").find_all("th")]
+        headers = [th.get_text(strip=True) for th in table.find_all("th")]
         rows = []
-        for row in table.find("tbody").find_all("tr"):
-            data = [td.text.strip() for td in row.find_all("td")]
-            rows.append(data)
+        for tr in table.find_all("tr")[1:]:
+            cells = [td.get_text(strip=True) for td in tr.find_all("td")]
+            if len(cells) == len(headers):
+                rows.append(cells)
         df = pd.DataFrame(rows, columns=headers)
-        return df, headers
-    return None, None
-
-comps = fetch_competitions(season_id, stage_id)
-
-if comps:
-    selected_comp = st.selectbox("Select Competition", list(comps.keys()))
-    selected_comp_id, selected_comp_url = comps[selected_comp]
-
-    counties = fetch_counties(selected_comp_url)
-
-    if counties:
-        selected_county = st.selectbox("Select County", list(counties.keys()))
-        selected_county_id = counties[selected_county]
-
-        final_url = f"https://bowlsenglandcomps.com/competition/area-fixture/{selected_comp_id}/{selected_county_id}"
-        results_df, rounds = fetch_results(final_url)
-
-        st.markdown(f"[🔗 View on Bowls England]({final_url})")
-
-        if results_df is not None and rounds:
-            selected_round = st.selectbox("Select Round", rounds)
-            if selected_round in results_df.columns:
-                st.dataframe(results_df[["Matchup", selected_round]])
-            else:
-                st.warning(f"No data available for round: {selected_round}")
-        else:
-            st.warning("No results available for this selection.")
+        return df
     else:
-        st.warning("No counties found.")
+        return None
+
+# --- UI ---
+current_year = str(datetime.now().year)
+year_options = ["2020", "2021", "2022", "2023", "2024", "2025"]
+season_index = year_options.index(current_year) if current_year in year_options else len(year_options)-1
+season = st.selectbox("Select Season", year_options, index=season_index)
+
+stage = st.selectbox("Select Stage", {"Early Stages": "1", "Final Stages": "2"})
+
+competitions = get_competitions(season, stage)
+if not competitions:
+    st.warning("No competitions found for this season and stage.")
+    st.stop()
+
+selected_competition = st.selectbox("Select Competition", list(competitions.keys()), index=0)
+comp_id = competitions[selected_competition]
+
+counties = get_counties(comp_id)
+if not counties:
+    st.warning("No counties found for this competition.")
+    st.stop()
+
+selected_county = st.selectbox("Select County", list(counties.keys()), index=0)
+county_id = counties[selected_county]
+
+# --- Results ---
+results_df = get_results_table(comp_id, county_id)
+if results_df is not None and not results_df.empty:
+    round_options = results_df.columns[1:]  # Skip the matchup column
+    selected_round = st.selectbox("Select Round", round_options)
+
+    if selected_round in results_df.columns:
+        st.dataframe(results_df[[selected_round]])
+    else:
+        st.warning(f"Round '{selected_round}' not found in the data.")
 else:
-    st.warning("No competitions found.")
+    st.warning("No result table found for this selection.")
