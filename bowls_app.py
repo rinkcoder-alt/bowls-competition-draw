@@ -137,14 +137,15 @@ if comps:
             st.write("### Available Columns (Rounds):")
             st.write(results_df.columns)  # Display the column names for debugging
             
+            # Allow user to select the round
             selected_round = st.selectbox("Select Round", rounds)
             
-            # Display only the selected round
+            # Check if the selected_round exists in columns
             if selected_round in results_df.columns:
                 st.write(f"Displaying results for **{selected_round}**:")
                 st.dataframe(results_df[["Matchup", selected_round]])  # Displaying only the selected round's data
             else:
-                st.warning("⚠️ No data available for the selected round.")
+                st.warning(f"⚠️ Selected round **{selected_round}** not found.")
         else:
             st.warning("⚠️ No results found for this competition and county.")
     else:
