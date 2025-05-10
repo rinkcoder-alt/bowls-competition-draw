@@ -30,19 +30,28 @@ def fetch_competitions(season_id, stage_id):
     res = requests.get(url)
     soup = BeautifulSoup(res.text, "html.parser")
     
-    # Updated selector for competition links (using the correct class)
-    comp_links = soup.select("a.pull-left.competition-name")
+    # Select competition links and competition names
+    comp_links = soup.find_all("a", href=True)  # Find all <a> tags with href
     
-    # Debug: Print out the fetched links for inspection
-    st.write("Fetched competition links:", comp_links)
+    comps = {}
+    for link in comp_links:
+        # Check if the <a> tag is a competition link (contains "/competition/")
+        if "/competition/" in link['href']:
+            comp_name_div = link.find("div", class_="pull-left competition-name")
+            if comp_name_div:
+                # Extract competition name from the <strong> tag
+                comp_name = comp_name_div.find("strong").text.strip().replace('> ', '')  # Clean up the name
+                comp_url = link['href']
+                full_url = f"https://bowlsenglandcomps.com{comp_url}"
+                comps[comp_name] = full_url
     
-    return {link.text.strip(): link['href'] for link in comp_links}
+    return comps
 
 comps = fetch_competitions(season_id, stage_id)
 
 if comps:
     st.write("### Available Competitions:")
     for comp_name, comp_url in comps.items():
-        st.write(f"- {comp_name}: [Link]({f'https://bowlsenglandcomps.com{comp_url}'})")
+        st.write(f"- {comp_name}: [Link]({comp_url})")
 else:
     st.warning("⚠️ No competitions found for this season and stage.")
