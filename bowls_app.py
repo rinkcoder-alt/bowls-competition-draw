@@ -132,8 +132,11 @@ if comps:
         st.write(f"Competition ID: {selected_comp_id} | County ID: {selected_county_id}")
         st.write(f"Final URL: [Click here to view the competition]({final_url})")
 
-        # Round selection
+        # Check if results_df exists and display column names
         if results_df is not None and rounds:
+            st.write("### Available Columns (Rounds):")
+            st.write(results_df.columns)  # Display the column names for debugging
+            
             selected_round = st.selectbox("Select Round", rounds)
             
             # Display only the selected round
