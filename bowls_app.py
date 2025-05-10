@@ -77,11 +77,21 @@ def fetch_results(competition_url):
 def extract_match_details(matchup):
     # Extract the Challenger and Opponent details from the matchup string
     challenger_match = re.search(r"([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)*)(?=\s*\(Challenger\))", matchup)
-    opponent_match = re.search(r"([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)*)(?=\(?!.*\(Challenger\))", matchup)
+    opponent_match = re.search(r"([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)*)(?=\s*(?!(?:\(Challenger\)))\s*\()", matchup)
 
-    challenger_name = challenger_match.group(1).strip() if challenger_match else "Unknown"
-    opponent_name = opponent_match.group(1).strip() if opponent_match else "Unknown"
+    # Print for debugging
+    st.write(f"Raw Matchup: {matchup}")
     
+    # Extract names
+    if challenger_match and opponent_match:
+        challenger_name = challenger_match.group(1).strip()
+        opponent_name = opponent_match.group(1).strip()
+    else:
+        # Handle case where Challenger and Opponent are not explicitly labeled
+        names = re.findall(r"([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)*)", matchup)
+        challenger_name = names[0].strip() if len(names) > 0 else "Unknown"
+        opponent_name = names[1].strip() if len(names) > 1 else "Unknown"
+
     # Extract Score and Ends if available
     score_match = re.search(r"(\d+)\s*-\s*(\d+)", matchup)
     score = f"{score_match.group(1)} - {score_match.group(2)}" if score_match else "No Score"
