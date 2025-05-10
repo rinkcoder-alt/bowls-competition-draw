@@ -74,28 +74,33 @@ def fetch_results(competition_url):
         return df, headers
     return None, None
 
-def extract_match_details(matchup):
-    # Extract names (Challenger and Opponent) and their locations
-    # Regex to remove the location from the names
-    names_with_location = re.findall(r"([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)*)\s*\((.*?)\)", matchup)
-    
-    if len(names_with_location) < 2:
-        # If we can't find both names with location, return Unknown for both
-        challenger_name = "Unknown"
-        opponent_name = "Unknown"
-    else:
-        # Assume the first name in the list is Challenger and the second one is Opponent
-        challenger_name, challenger_location = names_with_location[0]
-        opponent_name, opponent_location = names_with_location[1]
+def parse_matchup(matchup):
+    # Regular expressions to split the challenger, opponent, score, and ends
+    challenger_pattern = r"(.*?)(\(.*?\))\(Challenger\)"
+    opponent_pattern = r"V(.*?)(\(.*?\))"
+    score_pattern = r"(\d+)\s*-\s*(\d+)"
+    ends_pattern = r"Ends:\s*(\d+)"
 
-    # Extract Score and Ends if available
-    score_match = re.search(r"(\d+)\s*-\s*(\d+)", matchup)
-    score = f"{score_match.group(1)} - {score_match.group(2)}" if score_match else "No Score"
+    challenger_match = re.search(challenger_pattern, matchup)
+    opponent_match = re.search(opponent_pattern, matchup)
+    score_match = re.search(score_pattern, matchup)
+    ends_match = re.search(ends_pattern, matchup)
+
+    challenger_name = challenger_match.group(1).strip() if challenger_match else "Unknown"
+    challenger_location = challenger_match.group(2).strip() if challenger_match else "Unknown"
     
-    ends_match = re.search(r"Ends:\s*(\d+)", matchup)
+    opponent_name = opponent_match.group(1).strip() if opponent_match else "Unknown"
+    opponent_location = opponent_match.group(2).strip() if opponent_match else "Unknown"
+    
+    score = f"{score_match.group(1)} - {score_match.group(2)}" if score_match else "No Score"
     ends = ends_match.group(1) if ends_match else "N/A"
     
-    return challenger_name, opponent_name, score, ends
+    return {
+        "Challenger": f"{challenger_name} {challenger_location}",
+        "Opponent": f"{opponent_name} {opponent_location}",
+        "Score": score,
+        "Ends": ends
+    }
 
 comps = fetch_competitions(season_id, stage_id)
 
@@ -117,24 +122,11 @@ if comps:
         if results_df is not None and rounds:
             selected_round = st.selectbox("Select Round", rounds)
             if selected_round in results_df.columns:
-                st.write(f"Results for {selected_round}:")
-
-                matchups = results_df[selected_round].dropna().tolist()  # Remove blank values
-                
-                # Extract details and create a structured list for the DataFrame
-                extracted_data = []
-                for matchup in matchups:
-                    challenger, opponent, score, ends = extract_match_details(matchup)
-                    extracted_data.append({
-                        "Challenger": challenger,
-                        "Opponent": opponent,
-                        "Score": score,
-                        "Ends": ends
-                    })
-
-                # Create a DataFrame to display the results in a table
-                matchups_df = pd.DataFrame(extracted_data)
-                st.dataframe(matchups_df)
+                # Filtering the selected round and applying the parse_matchup function
+                selected_column = results_df[selected_round].dropna()  # Remove any empty values
+                parsed_data = selected_column.apply(parse_matchup)
+                parsed_df = pd.DataFrame(parsed_data.tolist())
+                st.dataframe(parsed_df)
             else:
                 st.warning(f"No data available for round: {selected_round}")
         else:
