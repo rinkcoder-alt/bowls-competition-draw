@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
+import pandas as pd
 from datetime import datetime
 
 st.set_page_config(page_title="Bowls England Draw Viewer", layout="centered")
@@ -75,6 +76,36 @@ def fetch_counties(competition_url):
     
     return counties
 
+# Fetch competition results (table)
+@st.cache_data(show_spinner=False)
+def fetch_results(competition_url):
+    res = requests.get(competition_url)
+    soup = BeautifulSoup(res.text, "html.parser")
+    
+    # Find the table that contains the match results
+    table = soup.find("table", class_="table")  # Replace 'table' and class name with correct class
+    
+    if table:
+        headers = []
+        rows = []
+        
+        # Extract headers (rounds)
+        header_row = table.find("thead").find_all("th")
+        headers = [header.text.strip() for header in header_row]
+        
+        # Extract rows (matches)
+        body_rows = table.find("tbody").find_all("tr")
+        for row in body_rows:
+            columns = row.find_all("td")
+            match_data = [col.text.strip() for col in columns]
+            rows.append(match_data)
+        
+        # Create a dataframe for display
+        df = pd.DataFrame(rows, columns=headers)
+        return df
+    else:
+        return None
+
 # Fetch competitions for the selected season and stage
 comps = fetch_competitions(season_id, stage_id)
 
@@ -94,9 +125,19 @@ if comps:
         # Construct the URL for the selected competition and county
         final_url = f"https://bowlsenglandcomps.com/competition/area-fixture/{selected_comp_id}/{selected_county_id}"
 
+        # Fetch competition results
+        results_df = fetch_results(final_url)
+
         st.write(f"You've selected **{selected_comp}** for **{selected_county}**.")
         st.write(f"Competition ID: {selected_comp_id} | County ID: {selected_county_id}")
         st.write(f"Final URL: [Click here to view the competition]({final_url})")
+
+        # Display results in a table
+        if results_df is not None:
+            st.write("Competition Results:")
+            st.dataframe(results_df)  # Display the results in a table
+        else:
+            st.warning("⚠️ No results found for this competition and county.")
     else:
         st.warning("⚠️ No counties found for the selected competition.")
 else:
