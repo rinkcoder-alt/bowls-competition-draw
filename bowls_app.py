@@ -3,6 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime
+import re
 
 st.set_page_config(page_title="Bowls England Draw Viewer", layout="centered")
 st.title("🏆 Bowls England Competition Draw Viewer")
@@ -73,6 +74,23 @@ def fetch_results(competition_url):
         return df, headers
     return None, None
 
+def extract_match_details(matchup):
+    # Extract the Challenger and Opponent details from the matchup string
+    challenger_match = re.search(r"([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)*)(?=\(.*\)\(Challenger\))", matchup)
+    opponent_match = re.search(r"([A-Za-z\s]+(?:,\s*[A-Za-z\s]+)*)(?=\(.*\))", matchup)
+
+    challenger_name = challenger_match.group(1).strip() if challenger_match else "Unknown"
+    opponent_name = opponent_match.group(1).strip() if opponent_match else "Unknown"
+    
+    # Extract Score and Ends if available
+    score_match = re.search(r"(\d+)\s*-\s*(\d+)", matchup)
+    score = f"{score_match.group(1)} - {score_match.group(2)}" if score_match else "No Score"
+    
+    ends_match = re.search(r"Ends:\s*(\d+)", matchup)
+    ends = ends_match.group(1) if ends_match else "N/A"
+    
+    return challenger_name, opponent_name, score, ends
+
 comps = fetch_competitions(season_id, stage_id)
 
 if comps:
@@ -93,8 +111,17 @@ if comps:
         if results_df is not None and rounds:
             selected_round = st.selectbox("Select Round", rounds)
             if selected_round in results_df.columns:
-                filtered_df = results_df[[selected_round]].replace("", pd.NA).dropna()
-                st.dataframe(filtered_df)
+                st.write(f"Results for {selected_round}:")
+                matchups = results_df[selected_round].dropna().tolist()  # Remove blank values
+
+                # Displaying the matchups with extracted details
+                for matchup in matchups:
+                    challenger, opponent, score, ends = extract_match_details(matchup)
+                    st.write(f"**Challenger**: {challenger}")
+                    st.write(f"**Opponent**: {opponent}")
+                    st.write(f"**Score**: {score}")
+                    st.write(f"**Ends**: {ends}")
+                    st.write("---")
             else:
                 st.warning(f"No data available for round: {selected_round}")
         else:
