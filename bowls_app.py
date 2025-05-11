@@ -92,6 +92,8 @@ def parse_matchup(matchup):
                 "Full Text": original_text,
                 "Challenger": challenger,
                 "Opponent": opponent,
+                "From (C)": "N/A",  # Challenger is BYE, no club
+                "From (O)": "N/A",  # Opponent doesn't have a club here
                 "Score": "No Score",
                 "Ends": "N/A"
             }
@@ -104,6 +106,8 @@ def parse_matchup(matchup):
                 "Full Text": original_text,
                 "Challenger": challenger,
                 "Opponent": opponent,
+                "From (C)": "N/A",  # Challenger has a club
+                "From (O)": "N/A",  # Opponent has no club here
                 "Score": "No Score",
                 "Ends": "N/A"
             }
@@ -116,16 +120,27 @@ def parse_matchup(matchup):
             if "(Challenger)" in p1:
                 challenger = p1.replace("(Challenger)", "").strip()
                 opponent = p2.strip()
+                return {
+                    "Full Text": original_text,
+                    "Challenger": challenger,
+                    "Opponent": opponent,
+                    "From (C)": "N/A",  # Walkover doesn't specify a club
+                    "From (O)": "N/A",  # Walkover doesn't specify a club
+                    "Score": "Walkover",
+                    "Ends": "N/A"
+                }
             else:
                 challenger = p2.replace("(Challenger)", "").strip()
                 opponent = p1.strip()
-            return {
-                "Full Text": original_text,
-                "Challenger": challenger,
-                "Opponent": opponent,
-                "Score": "Walkover",
-                "Ends": "N/A"
-            }
+                return {
+                    "Full Text": original_text,
+                    "Challenger": challenger,
+                    "Opponent": opponent,
+                    "From (C)": "N/A",  # Walkover doesn't specify a club
+                    "From (O)": "N/A",  # Walkover doesn't specify a club
+                    "Score": "Walkover",
+                    "Ends": "N/A"
+                }
 
     # Extract score and ends (if any)
     score_match = re.search(r"(\d+)\s*-\s*(\d+)", matchup)
@@ -142,9 +157,16 @@ def parse_matchup(matchup):
     challenger_match = re.search(r"([^(]+)\s*\(Challenger\)", matchup)
     challenger = challenger_match.group(1).strip() if challenger_match else "Unknown"
 
-    # Get all players with club (handling the outermost parentheses)
+    # Extract opponent name
     all_players = re.findall(r"([A-Z][a-zA-Z' .-]+(?:\(.*?\))?)", matchup)
     opponent = next((p for p in all_players if p != challenger), "Unknown")
+
+    # Extract "From (C)" and "From (O)"
+    from_c = re.search(r"\(.*?\)(?=\s*\(Challenger\))", matchup)  # Extract origin from challenger
+    from_o = re.search(r"\(.*?\)(?=\s*V|\s*W/O|\s*\(Challenger\))", matchup)  # Extract origin from opponent
+
+    from_c = from_c.group(0) if from_c else "Unknown"
+    from_o = from_o.group(0) if from_o else "Unknown"
 
     # If (Challenger) is at the end, reverse the score
     if "(Challenger)" in matchup and matchup.endswith("(Challenger)"):
@@ -154,6 +176,8 @@ def parse_matchup(matchup):
         "Full Text": original_text,
         "Challenger": challenger,
         "Opponent": opponent,
+        "From (C)": from_c,
+        "From (O)": from_o,
         "Score": score,
         "Ends": ends
     }
@@ -183,6 +207,8 @@ if comps:
                 selected_column = results_df[selected_round].dropna()  # Remove any empty values
                 parsed_data = selected_column.apply(parse_matchup)
                 parsed_df = pd.DataFrame(parsed_data.tolist())
+
+                # Display the DataFrame with additional columns
                 st.dataframe(parsed_df)
             else:
                 st.warning(f"No data available for round: {selected_round}")
