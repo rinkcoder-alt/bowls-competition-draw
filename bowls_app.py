@@ -75,6 +75,8 @@ def fetch_results(competition_url):
     return None, None
 
 def parse_matchup(matchup):
+    original_text = matchup  # Keep the original text for debugging
+
     # Check for BYE
     if "BYE" in matchup:
         players = re.split(r"V|v|W/O", matchup)
@@ -83,12 +85,13 @@ def parse_matchup(matchup):
                 challenger = player.replace("(Challenger)", "").strip()
                 opponent = "BYE"
                 return {
+                    "Full Text": original_text,
                     "Challenger": challenger,
                     "Opponent": opponent,
                     "Score": "No Score",
                     "Ends": "N/A"
                 }
-        return {"Challenger": "Unknown", "Opponent": "Unknown", "Score": "No Score", "Ends": "N/A"}
+        return {"Full Text": original_text, "Challenger": "Unknown", "Opponent": "Unknown", "Score": "No Score", "Ends": "N/A"}
 
     # Check for Walkover
     if "W/O" in matchup:
@@ -102,6 +105,7 @@ def parse_matchup(matchup):
                 challenger = p2.replace("(Challenger)", "").strip()
                 opponent = p1.strip()
             return {
+                "Full Text": original_text,
                 "Challenger": challenger,
                 "Opponent": opponent,
                 "Score": "Walkover",
@@ -139,6 +143,7 @@ def parse_matchup(matchup):
         score = f"{score_match.group(2)} - {score_match.group(1)}"
 
     return {
+        "Full Text": original_text,
         "Challenger": challenger,
         "Opponent": opponent,
         "Score": score,
