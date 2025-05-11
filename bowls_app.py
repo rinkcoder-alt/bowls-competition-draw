@@ -98,11 +98,19 @@ def parse_matchup(matchup):
 
     # Now, depending on the presence of the score, we split
     if score != "No Score":
-        # Split by score first (if score exists) and keep the score
-        parts = matchup.split(score, 1)
-    elif "V" in matchup:
-        # If there's no score, use 'V' as delimiter
-        parts = matchup.split("V", 1)
+
+
+    # Split by the first occurrence of ")V"
+        parts = re.split(r"\)V", matchup, 1)
+    if len(parts) < 2:
+        return {"Full Text": original_text, "Challenger": "Invalid", "From (C)": "Invalid", "Opponent": "Invalid", "From (O)": "Invalid", "Score": "Invalid", "Ends": "Invalid"}
+
+    # Clean up the parts
+        part_1 = parts[0].strip() + ")"
+        part_2 = parts[1].strip()
+
+
+
     elif "W/O" in matchup:
         # If there's no score and no 'V', use 'W/O' as delimiter (Walkover)
         parts = matchup.split("W/O", 1)
