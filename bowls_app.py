@@ -205,16 +205,13 @@ if comps:
             if selected_round in results_df.columns:
                 # Filtering the selected round and applying the parse_matchup function
                 selected_column = results_df[selected_round].dropna()  # Remove any empty values
-                parsed_data = selected_column.apply(parse_matchup)
+                parsed_data = selected_column.apply
                 parsed_df = pd.DataFrame(parsed_data.tolist())
-
-                # Display the DataFrame with additional columns
-                st.dataframe(parsed_df)
-            else:
-                st.warning(f"No data available for round: {selected_round}")
+            # Display the DataFrame with additional columns
+            st.dataframe(parsed_df)
         else:
-            st.warning("No results available for this selection.")
+            st.warning(f"No data available for round: {selected_round}")
     else:
-        st.warning("No counties found.")
+        st.warning("No results available for this selection.")
 else:
-    st.warning("No competitions found.")
+    st.warning("No counties found.")
