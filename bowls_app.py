@@ -184,7 +184,7 @@ if comps:
         final_url = f"https://bowlsenglandcomps.com/competition/area-fixture/{selected_comp_id}/{selected_county_id}"
         results_df, rounds = fetch_results(final_url)
 
-        st.markdown(f"🔗 View on Bowls England")
+        st.markdown(f"[🔗 View on Bowls England]({final_url})")
 
         if results_df is not None and rounds:
             selected_round = st.selectbox("Select Round", rounds)
@@ -192,11 +192,6 @@ if comps:
                 selected_column = results_df[selected_round].dropna()
                 parsed_data = selected_column.apply(parse_matchup)
                 parsed_df = pd.DataFrame(parsed_data.tolist())
-                
-                # Define columns to include or exclude
-                columns_to_include = ["Challenger", "From (C)", "Opponent", "From (O)", "Score", "Ends"]
-                parsed_df = parsed_df                
-                parsed_df = parsed_df[columns_to_include]
                 st.dataframe(parsed_df)
             else:
                 st.warning(f"No data available for round: {selected_round}")
