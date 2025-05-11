@@ -112,6 +112,34 @@ def parse_matchup(matchup):
                 "Ends": "N/A"
             }
 
+    # Extract players
+    players = re.findall(r"([A-Z][a-zA-Z' .-]+\(.*?Bedfordshire\))", matchup)
+    
+    # Ensure there are at least two players (challenger and opponent)
+    if len(players) < 2:
+        return {"Full Text": original_text, "Challenger": "Unknown", "Opponent": "Unknown", "Score": "No Score", "Ends": "N/A"}
+
+    # Find the challenger, which is the name just before "(Challenger)"
+    challenger_match = re.search(r"([A-Z][a-zA-Z' .-]+)\s*\(Challenger\)", matchup)
+    if challenger_match:
+        challenger = challenger_match.group(1).strip()
+    else:
+        challenger = "Unknown"
+
+    # Now determine the opponent: It can either be after "V" or "W/O" or before
+    opponent = "Unknown"
+
+    # Check for "V" (or "v") or "W/O" to determine the opponent
+    if "V" in matchup or "v" in matchup:
+        parts = re.split(r"V|v|W/O", matchup)
+        # The opponent is the second player listed
+        opponent = parts[1].strip() if len(parts) > 1 else "Unknown"
+    else:
+        # In case there’s no "V" or "W/O", the opponent is just the other player
+        all_players = [player.strip() for player in players if player.strip() != challenger]
+        if all_players:
+            opponent = all_players[0]
+
     # Score and ends
     score_match = re.search(r"(\d+)\s*-\s*(\d+)", matchup)
     ends_match = re.search(r"Ends:\s*(\d+)", matchup)
@@ -122,18 +150,6 @@ def parse_matchup(matchup):
         score = f"{score_match.group(1)} - {score_match.group(2)}"
     if ends_match:
         ends = ends_match.group(1)
-
-    # Extract challenger first
-    challenger_match = re.search(r"([^(]+\(.*?\))\s*\(Challenger\)", matchup)
-    challenger = challenger_match.group(1).strip() if challenger_match else "Unknown"
-
-    # Get all players with club
-    all_players = re.findall(r"([A-Z][a-zA-Z' .-]+\(.*?Bedfordshire\))", matchup)
-    opponent = next((p for p in all_players if p != challenger), "Unknown")
-
-    # If the challenger was listed second and score is known, reverse the score
-    if challenger_match and all_players and all_players.index(challenger) > 0 and score_match:
-        score = f"{score_match.group(2)} - {score_match.group(1)}"
 
     return {
         "Full Text": original_text,
