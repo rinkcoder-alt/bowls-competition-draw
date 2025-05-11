@@ -112,7 +112,7 @@ def parse_matchup(matchup):
                 "Ends": "N/A"
             }
 
-    # Check for score
+    # Score and ends
     score_match = re.search(r"(\d+)\s*-\s*(\d+)", matchup)
     ends_match = re.search(r"Ends:\s*(\d+)", matchup)
     score = "No Score"
@@ -123,23 +123,16 @@ def parse_matchup(matchup):
     if ends_match:
         ends = ends_match.group(1)
 
-    # Remove ends from text before splitting
-    matchup_clean = re.sub(r"Ends:\s*\d+", "", matchup)
-    matchup_clean = matchup_clean.replace("Ends:", "")
+    # Extract challenger first
+    challenger_match = re.search(r"([^(]+\(.*?\))\s*\(Challenger\)", matchup)
+    challenger = challenger_match.group(1).strip() if challenger_match else "Unknown"
 
-    # Split by score or V or W/O to extract names
-    parts = re.split(r"\d+\s*-\s*\d+|V|v|W/O", matchup_clean)
-    players = [p.strip() for p in parts if p.strip() != ""]
+    # Get all players with club
+    all_players = re.findall(r"([A-Z][a-zA-Z' .-]+\(.*?Bedfordshire\))", matchup)
+    opponent = next((p for p in all_players if p != challenger), "Unknown")
 
-    challenger = opponent = "Unknown"
-    for player in players:
-        if "(Challenger)" in player:
-            challenger = player.replace("(Challenger)", "").strip()
-        else:
-            opponent = player.strip()
-
-    # Ensure score is shown as challenger - opponent
-    if score_match and "(Challenger)" in players[-1]:
+    # If the challenger was listed second and score is known, reverse the score
+    if challenger_match and all_players and all_players.index(challenger) > 0 and score_match:
         score = f"{score_match.group(2)} - {score_match.group(1)}"
 
     return {
