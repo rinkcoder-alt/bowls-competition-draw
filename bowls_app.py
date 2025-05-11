@@ -74,17 +74,20 @@ def fetch_results(competition_url):
         return df, headers
     return None, None
 
+def extract_name_and_location(text):
+    name = text.split('(')[0].strip()
+    location = text[text.find('(')+1:text.rfind(')')].strip()
+    return name, location
 
 def parse_matchup(matchup):
-    original_text = matchup  # Keep the original text for debugging
+    original_text = matchup.strip()
 
     # Normalize spacing
     matchup = re.sub(r'\s+', ' ', matchup).strip()
 
-    # Check for BYE
+    # Handle BYE cases
     if "BYE" in matchup:
         if "(Challenger)" in matchup:
-            # If BYE is followed by (Challenger), challenger is BYE
             players = matchup.split("BYE(Challenger)")
             challenger = "BYE"
             opponent = players[0].strip() if players[0].strip() else "Unknown"
@@ -92,13 +95,12 @@ def parse_matchup(matchup):
                 "Full Text": original_text,
                 "Challenger": challenger,
                 "Opponent": opponent,
-                "From (C)": "N/A",  # Challenger is BYE, no club
-                "From (O)": "N/A",  # Opponent doesn't have a club here
+                "From (C)": "N/A",
+                "From (O)": "N/A",
                 "Score": "No Score",
                 "Ends": "N/A"
             }
         else:
-            # If BYE is anywhere else, it's the opponent
             players = matchup.split("BYE")
             challenger = players[0].strip() if players[0].strip() else "Unknown"
             opponent = "BYE"
@@ -106,82 +108,84 @@ def parse_matchup(matchup):
                 "Full Text": original_text,
                 "Challenger": challenger,
                 "Opponent": opponent,
-                "From (C)": "N/A",  # Challenger has a club
-                "From (O)": "N/A",  # Opponent has no club here
+                "From (C)": "N/A",
+                "From (O)": "N/A",
                 "Score": "No Score",
                 "Ends": "N/A"
             }
 
-    # Check for Walkover (W/O)
+    # Handle Walkovers
     if "W/O" in matchup:
         parts = matchup.split("W/O")
-        if len(parts) == 2:
-            p1, p2 = parts[0].strip(), parts[1].strip()
-            if "(Challenger)" in p1:
-                challenger = p1.replace("(Challenger)", "").strip()
-                opponent = p2.strip()
-                return {
-                    "Full Text": original_text,
-                    "Challenger": challenger,
-                    "Opponent": opponent,
-                    "From (C)": "N/A",  # Walkover doesn't specify a club
-                    "From (O)": "N/A",  # Walkover doesn't specify a club
-                    "Score": "Walkover",
-                    "Ends": "N/A"
-                }
-            else:
-                challenger = p2.replace("(Challenger)", "").strip()
-                opponent = p1.strip()
-                return {
-                    "Full Text": original_text,
-                    "Challenger": challenger,
-                    "Opponent": opponent,
-                    "From (C)": "N/A",  # Walkover doesn't specify a club
-                    "From (O)": "N/A",  # Walkover doesn't specify a club
-                    "Score": "Walkover",
-                    "Ends": "N/A"
-                }
+        p1 = parts[0].strip()
+        p2 = parts[1].strip()
+        if "(Challenger)" in p1:
+            challenger_text = p1.replace("(Challenger)", "").strip()
+            opponent_text = p2
+        else:
+            challenger_text = p2.replace("(Challenger)", "").strip()
+            opponent_text = p1
+        challenger, from_challenger = extract_name_and_location(challenger_text)
+        opponent, from_opponent = extract_name_and_location(opponent_text)
+        return {
+            "Full Text": original_text,
+            "Challenger": challenger,
+            "Opponent": opponent,
+            "From (C)": from_challenger,
+            "From (O)": from_opponent,
+            "Score": "Walkover",
+            "Ends": "N/A"
+        }
 
-    # Extract score and ends (if any)
+    # Extract score and ends
     score_match = re.search(r"(\d+)\s*-\s*(\d+)", matchup)
     ends_match = re.search(r"Ends:\s*(\d+)", matchup)
-    score = "No Score"
-    ends = "N/A"
+    score = score_match.group(0) if score_match else "No Score"
+    ends = ends_match.group(1) if ends_match else "N/A"
 
+    # Remove score and ends from the text
+    stripped_matchup = matchup
     if score_match:
-        score = f"{score_match.group(1)} - {score_match.group(2)}"
+        stripped_matchup = stripped_matchup.replace(score, "").strip()
     if ends_match:
-        ends = ends_match.group(1)
+        stripped_matchup = re.sub(r"Ends:\s*\d+", "", stripped_matchup).strip()
 
-    # Extract challenger (the name immediately before (Challenger))
-    challenger_match = re.search(r"([^(]+)\s*\(Challenger\)", matchup)
-    challenger = challenger_match.group(1).strip() if challenger_match else "Unknown"
+    # Split on 'V'
+    if " V " in stripped_matchup:
+        part_1, part_2 = stripped_matchup.split(" V ")
+    else:
+        return {
+            "Full Text": original_text,
+            "Challenger": "Unknown",
+            "Opponent": "Unknown",
+            "From (C)": "Unknown",
+            "From (O)": "Unknown",
+            "Score": score,
+            "Ends": ends
+        }
 
-    # Extract opponent name
-    all_players = re.findall(r"([A-Z][a-zA-Z' .-]+(?:\(.*?\))?)", matchup)
-    opponent = next((p for p in all_players if p != challenger), "Unknown")
-
-    # Extract "From (C)" and "From (O)"
-    from_c = re.search(r"\(.*?\)(?=\s*\(Challenger\))", matchup)  # Extract origin from challenger
-    from_o = re.search(r"\(.*?\)(?=\s*V|\s*W/O|\s*\(Challenger\))", matchup)  # Extract origin from opponent
-
-    from_c = from_c.group(0) if from_c else "Unknown"
-    from_o = from_o.group(0) if from_o else "Unknown"
-
-    # If (Challenger) is at the end, reverse the score
-    if "(Challenger)" in matchup and matchup.endswith("(Challenger)"):
-        score = f"{score_match.group(2)} - {score_match.group(1)}" if score_match else "No Score"
+    # Identify Challenger and Opponent properly
+    if "(Challenger)" in part_1:
+        name_text = part_1.replace("(Challenger)", "").strip()
+        challenger, from_challenger = extract_name_and_location(name_text)
+        opponent, from_opponent = extract_name_and_location(part_2)
+    elif "(Challenger)" in part_2:
+        name_text = part_2.replace("(Challenger)", "").strip()
+        challenger, from_challenger = extract_name_and_location(name_text)
+        opponent, from_opponent = extract_name_and_location(part_1)
+    else:
+        opponent, from_opponent = extract_name_and_location(part_1)
+        challenger, from_challenger = extract_name_and_location(part_2)
 
     return {
         "Full Text": original_text,
         "Challenger": challenger,
         "Opponent": opponent,
-        "From (C)": from_c,
-        "From (O)": from_o,
+        "From (C)": from_challenger,
+        "From (O)": from_opponent,
         "Score": score,
         "Ends": ends
     }
-
 
 comps = fetch_competitions(season_id, stage_id)
 
@@ -203,15 +207,15 @@ if comps:
         if results_df is not None and rounds:
             selected_round = st.selectbox("Select Round", rounds)
             if selected_round in results_df.columns:
-                # Filtering the selected round and applying the parse_matchup function
-                selected_column = results_df[selected_round].dropna()  # Remove any empty values
-                parsed_data = selected_column.apply
+                selected_column = results_df[selected_round].dropna()
+                parsed_data = selected_column.apply(parse_matchup)
                 parsed_df = pd.DataFrame(parsed_data.tolist())
-            # Display the DataFrame with additional columns
-            st.dataframe(parsed_df)
+                st.dataframe(parsed_df)
+            else:
+                st.warning(f"No data available for round: {selected_round}")
         else:
-            st.warning(f"No data available for round: {selected_round}")
+            st.warning("No results available for this selection.")
     else:
-        st.warning("No results available for this selection.")
+        st.warning("No counties found.")
 else:
-    st.warning("No counties found.")
+    st.warning("No competitions found.")
