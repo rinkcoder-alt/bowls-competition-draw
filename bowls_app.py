@@ -80,112 +80,94 @@ def extract_name_and_location(text):
     return name, location
 
 def parse_matchup(matchup):
-    original_text = matchup.strip()
+    original_text = matchup  # Keep the original text for debugging
 
-    # Normalize spacing
-    matchup = re.sub(r'\s+', ' ', matchup).strip()
-
-    # Handle BYE cases
-    if "BYE" in matchup:
-        if "(Challenger)" in matchup:
-            players = matchup.split("BYE(Challenger)")
-            challenger = "BYE"
-            opponent = players[0].strip() if players[0].strip() else "Unknown"
-            return {
-                "Full Text": original_text,
-                "Challenger": challenger,
-                "Opponent": opponent,
-                "From (C)": "N/A",
-                "From (O)": "N/A",
-                "Score": "No Score",
-                "Ends": "N/A"
-            }
-        else:
-            players = matchup.split("BYE")
-            challenger = players[0].strip() if players[0].strip() else "Unknown"
-            opponent = "BYE"
-            return {
-                "Full Text": original_text,
-                "Challenger": challenger,
-                "Opponent": opponent,
-                "From (C)": "N/A",
-                "From (O)": "N/A",
-                "Score": "No Score",
-                "Ends": "N/A"
-            }
-
-    # Handle Walkovers
-    if "W/O" in matchup:
-        parts = matchup.split("W/O")
-        p1 = parts[0].strip()
-        p2 = parts[1].strip()
-        if "(Challenger)" in p1:
-            challenger_text = p1.replace("(Challenger)", "").strip()
-            opponent_text = p2
-        else:
-            challenger_text = p2.replace("(Challenger)", "").strip()
-            opponent_text = p1
-        challenger, from_challenger = extract_name_and_location(challenger_text)
-        opponent, from_opponent = extract_name_and_location(opponent_text)
-        return {
-            "Full Text": original_text,
-            "Challenger": challenger,
-            "Opponent": opponent,
-            "From (C)": from_challenger,
-            "From (O)": from_opponent,
-            "Score": "Walkover",
-            "Ends": "N/A"
-        }
-
-    # Extract score and ends
-    score_match = re.search(r"(\d+)\s*-\s*(\d+)", matchup)
+    # First, extract and save the 'Ends:' value (if it exists)
     ends_match = re.search(r"Ends:\s*(\d+)", matchup)
-    score = score_match.group(0) if score_match else "No Score"
-    ends = ends_match.group(1) if ends_match else "N/A"
-
-    # Remove score and ends from the text
-    stripped_matchup = matchup
-    if score_match:
-        stripped_matchup = stripped_matchup.replace(score, "").strip()
+    ends = "N/A"
     if ends_match:
-        stripped_matchup = re.sub(r"Ends:\s*\d+", "", stripped_matchup).strip()
+        ends = ends_match.group(1)
+        # Remove the 'Ends' part from the matchup string
+        matchup = re.sub(r"Ends:\s*\d+", "", matchup)
 
-    # Split on 'V'
-    if " V " in stripped_matchup:
-        part_1, part_2 = stripped_matchup.split(" V ")
+    # Extract the score (if it exists) but do not remove it
+    score_match = re.search(r"(\d+)\s*-\s*(\d+)", matchup)
+    score = "No Score"
+    if score_match:
+        score = f"{score_match.group(1)} - {score_match.group(2)}"
+
+    # Now, depending on the presence of the score, we split
+    if score != "No Score":
+        # Split by score first (if score exists) and keep the score
+        parts = matchup.split(score, 1)
+    elif "V" in matchup:
+        # If there's no score, use 'V' as delimiter
+        parts = matchup.split("V", 1)
+    elif "W/O" in matchup:
+        # If there's no score and no 'V', use 'W/O' as delimiter (Walkover)
+        parts = matchup.split("W/O", 1)
     else:
-        return {
-            "Full Text": original_text,
-            "Challenger": "Unknown",
-            "Opponent": "Unknown",
-            "From (C)": "Unknown",
-            "From (O)": "Unknown",
-            "Score": score,
-            "Ends": ends
-        }
+        # If none of the above, it's an invalid format
+        return {"Full Text": original_text, "Challenger": "Invalid", "From (C)": "Invalid", "Opponent": "Invalid", "From (O)": "Invalid", "Score": "Invalid", "Ends": "Invalid"}
 
-    # Identify Challenger and Opponent properly
+    # Clean up the parts and ensure both parts exist
+    part_1 = parts[0].strip()
+    part_2 = parts[1].strip() if len(parts) > 1 else ""
+
+    # Identify the Challenger and Opponent
+    clean_part_1 = part_1.replace("(Challenger)", "").strip()
+    clean_part_2 = part_2.replace("(Challenger)", "").strip()
+
     if "(Challenger)" in part_1:
-        name_text = part_1.replace("(Challenger)", "").strip()
-        challenger, from_challenger = extract_name_and_location(name_text)
-        opponent, from_opponent = extract_name_and_location(part_2)
+        challenger = clean_part_1.split('(')[0].strip()
+        from_challenger = clean_part_1[clean_part_1.find('(')+1 : clean_part_1.rfind(')')].strip()
+        if "BYE" not in part_2:
+            opponent = clean_part_2.split('(')[0].strip()
+            from_opponent = clean_part_2[clean_part_2.find('(')+1 : clean_part_2.rfind(')')].strip()
+        else:
+            opponent = "BYE"
+            from_opponent = "N/A"
+
     elif "(Challenger)" in part_2:
-        name_text = part_2.replace("(Challenger)", "").strip()
-        challenger, from_challenger = extract_name_and_location(name_text)
-        opponent, from_opponent = extract_name_and_location(part_1)
+        if "BYE" not in part_2:
+            challenger = clean_part_2.split('(')[0].strip()
+            from_challenger = clean_part_2[clean_part_2.find('(')+1 : clean_part_2.rfind(')')].strip()
+            opponent = clean_part_1.split('(')[0].strip()
+            from_opponent = clean_part_1[clean_part_1.find('(')+1 : clean_part_1.rfind(')')].strip()
+        else:
+            challenger = clean_part_2.split('(')[0].strip()
+            from_challenger = clean_part_1[clean_part_1.find('(')+1 : clean_part_1.rfind(')')].strip()
+            opponent = "BYE"
+            from_opponent = "N/A"
+
     else:
-        opponent, from_opponent = extract_name_and_location(part_1)
-        challenger, from_challenger = extract_name_and_location(part_2)
+        # If no challenger marked, assume left side is opponent and right side is challenger
+        opponent = clean_part_1.split('(')[0].strip()
+        from_opponent = clean_part_1[clean_part_1.find('(')+1 : clean_part_1.rfind(')')].strip()
+        challenger = clean_part_2.split('(')[0].strip()
+        from_challenger = clean_part_2[clean_part_2.find('(')+1 : clean_part_2.rfind(')')].strip()
+
+
+    # Reverse the score if the challenger is in the second part
+    if "(Challenger)" in part_2 and score != "No Score":
+        score = reverse_score(score)
 
     return {
         "Full Text": original_text,
         "Challenger": challenger,
-        "Opponent": opponent,
         "From (C)": from_challenger,
+        "Opponent": opponent,
         "From (O)": from_opponent,
         "Score": score,
         "Ends": ends
     }
+
+def reverse_score(score):
+    """Reverse the score if the challenger is in the second part of the string."""
+    if score != "No Score":
+        parts = score.split(" - ")
+        return f"{parts[1]} - {parts[0]}"
+    return score
 
 comps = fetch_competitions(season_id, stage_id)
 
