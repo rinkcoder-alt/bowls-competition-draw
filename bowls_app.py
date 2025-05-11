@@ -100,10 +100,11 @@ def parse_matchup(matchup):
     if score != "No Score":
 
 
-    # Split by the first occurrence of ")V"
+        # Split by score first (if score exists) and keep the score
+        parts = matchup.split(score, 1)
+    elif "V" in matchup:
+        # If there's no score, use 'V' as delimiter
         parts = re.split(r"\)V", matchup, 1)
-    if len(parts) < 2:
-        return {"Full Text": original_text, "Challenger": "Invalid", "From (C)": "Invalid", "Opponent": "Invalid", "From (O)": "Invalid", "Score": "Invalid", "Ends": "Invalid"}
 
     # Clean up the parts
         part_1 = parts[0].strip() + ")"
