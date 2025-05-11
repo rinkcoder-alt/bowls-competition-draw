@@ -74,7 +74,90 @@ def fetch_results(competition_url):
         return df, headers
     return None, None
 
+
 def parse_matchup(matchup):
+    original_text = matchup  # Keep the original text for debugging
+
+    # Normalize spacing
+    matchup = re.sub(r'\s+', ' ', matchup).strip()
+
+    # Check for BYE
+    if "BYE" in matchup:
+        if "(Challenger)" in matchup:
+            # If BYE is followed by (Challenger), challenger is BYE
+            players = matchup.split("BYE(Challenger)")
+            challenger = "BYE"
+            opponent = players[0].strip() if players[0].strip() else "Unknown"
+            return {
+                "Full Text": original_text,
+                "Challenger": challenger,
+                "Opponent": opponent,
+                "Score": "No Score",
+                "Ends": "N/A"
+            }
+        else:
+            # If BYE is anywhere else, it's the opponent
+            players = matchup.split("BYE")
+            challenger = players[0].strip() if players[0].strip() else "Unknown"
+            opponent = "BYE"
+            return {
+                "Full Text": original_text,
+                "Challenger": challenger,
+                "Opponent": opponent,
+                "Score": "No Score",
+                "Ends": "N/A"
+            }
+
+    # Check for Walkover (W/O)
+    if "W/O" in matchup:
+        parts = matchup.split("W/O")
+        if len(parts) == 2:
+            p1, p2 = parts[0].strip(), parts[1].strip()
+            if "(Challenger)" in p1:
+                challenger = p1.replace("(Challenger)", "").strip()
+                opponent = p2.strip()
+            else:
+                challenger = p2.replace("(Challenger)", "").strip()
+                opponent = p1.strip()
+            return {
+                "Full Text": original_text,
+                "Challenger": challenger,
+                "Opponent": opponent,
+                "Score": "Walkover",
+                "Ends": "N/A"
+            }
+
+    # Extract score and ends (if any)
+    score_match = re.search(r"(\d+)\s*-\s*(\d+)", matchup)
+    ends_match = re.search(r"Ends:\s*(\d+)", matchup)
+    score = "No Score"
+    ends = "N/A"
+
+    if score_match:
+        score = f"{score_match.group(1)} - {score_match.group(2)}"
+    if ends_match:
+        ends = ends_match.group(1)
+
+    # Extract challenger (the name immediately before (Challenger))
+    challenger_match = re.search(r"([^(]+)\s*\(Challenger\)", matchup)
+    challenger = challenger_match.group(1).strip() if challenger_match else "Unknown"
+
+    # Get all players with club (handling the outermost parentheses)
+    all_players = re.findall(r"([A-Z][a-zA-Z' .-]+(?:\(.*?\))?)", matchup)
+    opponent = next((p for p in all_players if p != challenger), "Unknown")
+
+    # If (Challenger) is at the end, reverse the score
+    if "(Challenger)" in matchup and matchup.endswith("(Challenger)"):
+        score = f"{score_match.group(2)} - {score_match.group(1)}" if score_match else "No Score"
+
+    return {
+        "Full Text": original_text,
+        "Challenger": challenger,
+        "Opponent": opponent,
+        "Score": score,
+        "Ends": ends
+    }
+
     original_text = matchup  # Keep the original text for debugging
 
     # Check for BYE
