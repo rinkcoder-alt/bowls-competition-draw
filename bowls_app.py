@@ -153,7 +153,7 @@ def parse_matchup(matchup):
         score = reverse_score(score)
 
     return {
-        "Full Text": original_text,
+        #"Full Text": original_text,
         "Challenger": challenger,
         "From (C)": from_challenger,
         "Opponent": opponent,
