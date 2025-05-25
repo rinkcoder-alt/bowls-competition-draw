@@ -94,37 +94,55 @@ def reverse_score(score):
     return score
 
 def parse_matchup_html(td):
-    """
-    Extract challenger, opponent, score, and ends from a <td> BeautifulSoup element.
-    """
     spans = td.find_all("span")
 
+    # Extract names and locations robustly
     names = [s.get_text(strip=True) for s in spans if "team_name" in s.get("class", [])]
     locations = [s.get_text(strip=True) for s in spans if "team_name_line_2" in s.get("class", [])]
-    result_text = next((s.get_text(strip=True) for s in spans if "fixture_result" in s.get("class", [])), "")
-    ends_text = next((s.get_text(strip=True) for s in spans if "ends" in s.get("class", [])), None)
 
-    midpoint = len(spans) // 2
+    # Extract result and ends text
+    result_span = next((s for s in spans if "fixture_result" in s.get("class", [])), None)
+    result_text = result_span.get_text(strip=True) if result_span else "No Score"
+
+    ends_span = next((s for s in spans if "ends" in s.get("class", [])), None)
+    ends_text = ends_span.get_text(strip=True) if ends_span else "N/A"
+
+    # Find challenger span index if exists
     challenger_idx = None
     for i, span in enumerate(spans):
         if "challenger" in span.get("class", []):
-            challenger_idx = 1 if i > midpoint else 0
+            challenger_idx = i
             break
 
-    if challenger_idx is None:
-        challenger_idx = 1
+    if challenger_idx is not None:
+        # Find indices of team_name spans
+        team_name_indices = [i for i, s in enumerate(spans) if "team_name" in s.get("class", [])]
+        if not team_name_indices:
+            # No teams found; return all N/A
+            return {
+                "Challenger": "N/A",
+                "From (C)": "N/A",
+                "Opponent": "N/A",
+                "From (O)": "N/A",
+                "Score": result_text,
+                "Ends": ends_text
+            }
+        # Pick team_name span closest to challenger span index
+        closest_team_idx = min(team_name_indices, key=lambda x: abs(x - challenger_idx))
+        challenger_idx_final = team_name_indices.index(closest_team_idx)
+    else:
+        # No challenger span found, default challenger to first team
+        challenger_idx_final = 0
 
-    opponent_idx = 1 - challenger_idx
-
-    # Safety checks
+    # Defensive check for enough names and locations
     if len(names) < 2 or len(locations) < 2:
         return {
-            "Challenger": "N/A",
-            "From (C)": "N/A",
-            "Opponent": "N/A",
-            "From (O)": "N/A",
-            "Score": "N/A",
-            "Ends": "N/A"
+            "Challenger": names[challenger_idx_final] if len(names) > challenger_idx_final else "N/A",
+            "From (C)": locations[challenger_idx_final] if len(locations) > challenger_idx_final else "N/A",
+            "Opponent": names[1 - challenger_idx_final] if len(names) > (1 - challenger_idx_final) else "N/A",
+            "From (O)": locations[1 - challenger_idx_final] if len(locations) > (1 - challenger_idx_final) else "N/A",
+            "Score": result_text if "-" in result_text else "No Score",
+            "Ends": ends_text
         }
 
     # Normalize score text
@@ -132,14 +150,13 @@ def parse_matchup_html(td):
         result_text = "No Score"
 
     return {
-        "Challenger": names[challenger_idx],
-        "From (C)": locations[challenger_idx],
-        "Opponent": names[opponent_idx],
-        "From (O)": locations[opponent_idx],
+        "Challenger": names[challenger_idx_final],
+        "From (C)": locations[challenger_idx_final],
+        "Opponent": names[1 - challenger_idx_final],
+        "From (O)": locations[1 - challenger_idx_final],
         "Score": result_text,
-        "Ends": ends_text or "N/A"
+        "Ends": ends_text
     }
-
 
 
 # MAIN UI FLOW
@@ -166,7 +183,6 @@ if comps:
         if results_df is not None and rounds:
             selected_round = st.selectbox("Select Round", rounds[::-1])
             if selected_round in results_df.columns:
-                selected_column = results_df[selected_round].dropna()
                 parsed_data = []
                 for _, row in results_df.iterrows():
                     raw_html = row[selected_round]
@@ -175,6 +191,24 @@ if comps:
                         td = soup.find("td")
                         if td:
                             parsed_data.append(parse_matchup_html(td))
+                        else:
+                            parsed_data.append({
+                                "Challenger": "N/A",
+                                "From (C)": "N/A",
+                                "Opponent": "N/A",
+                                "From (O)": "N/A",
+                                "Score": "N/A",
+                                "Ends": "N/A"
+                            })
+                    else:
+                        parsed_data.append({
+                            "Challenger": "N/A",
+                            "From (C)": "N/A",
+                            "Opponent": "N/A",
+                            "From (O)": "N/A",
+                            "Score": "N/A",
+                            "Ends": "N/A"
+                        })
 
                 parsed_df = pd.DataFrame(parsed_data)
                 st.dataframe(parsed_df.style.set_properties(**{'text-align': 'left'}), use_container_width=True)
