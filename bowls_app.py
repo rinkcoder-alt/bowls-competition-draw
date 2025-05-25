@@ -93,70 +93,121 @@ def reverse_score(score):
         return f"{parts[1]} - {parts[0]}"
     return score
 
-def parse_matchup_html(td):
-    spans = td.find_all("span")
+from bs4 import BeautifulSoup
 
-    # Extract names and locations robustly
-    names = [s.get_text(strip=True) for s in spans if "team_name" in s.get("class", [])]
-    locations = [s.get_text(strip=True) for s in spans if "team_name_line_2" in s.get("class", [])]
-
-    # Extract result and ends text
-    result_span = next((s for s in spans if "fixture_result" in s.get("class", [])), None)
-    result_text = result_span.get_text(strip=True) if result_span else "No Score"
-
-    ends_span = next((s for s in spans if "ends" in s.get("class", [])), None)
-    ends_text = ends_span.get_text(strip=True) if ends_span else "N/A"
-
-    # Find challenger span index if exists
-    challenger_idx = None
-    for i, span in enumerate(spans):
-        if "challenger" in span.get("class", []):
-            challenger_idx = i
-            break
-
-    if challenger_idx is not None:
-        # Find indices of team_name spans
-        team_name_indices = [i for i, s in enumerate(spans) if "team_name" in s.get("class", [])]
-        if not team_name_indices:
-            # No teams found; return all N/A
-            return {
-                "Challenger": "N/A",
-                "From (C)": "N/A",
-                "Opponent": "N/A",
-                "From (O)": "N/A",
-                "Score": result_text,
-                "Ends": ends_text
-            }
-        # Pick team_name span closest to challenger span index
-        closest_team_idx = min(team_name_indices, key=lambda x: abs(x - challenger_idx))
-        challenger_idx_final = team_name_indices.index(closest_team_idx)
-    else:
-        # No challenger span found, default challenger to first team
-        challenger_idx_final = 0
-
-    # Defensive check for enough names and locations
-    if len(names) < 2 or len(locations) < 2:
+def parse_matchup_html(cell_html):
+    soup = BeautifulSoup(cell_html, "html.parser")
+    p = soup.find("p")
+    if not p:
         return {
-            "Challenger": names[challenger_idx_final] if len(names) > challenger_idx_final else "N/A",
-            "From (C)": locations[challenger_idx_final] if len(locations) > challenger_idx_final else "N/A",
-            "Opponent": names[1 - challenger_idx_final] if len(names) > (1 - challenger_idx_final) else "N/A",
-            "From (O)": locations[1 - challenger_idx_final] if len(locations) > (1 - challenger_idx_final) else "N/A",
-            "Score": result_text if "-" in result_text else "No Score",
-            "Ends": ends_text
+            "Challenger": "N/A",
+            "From (C)": "N/A",
+            "Opponent": "N/A",
+            "From (O)": "N/A",
+            "Score": "N/A",
+            "Ends": "N/A"
         }
 
-    # Normalize score text
-    if "-" not in result_text:
-        result_text = "No Score"
+    # Extract all text spans with their class
+    spans = p.find_all("span")
 
+    # Extract team names and locations (in order)
+    team_names = [span.get_text(strip=True) for span in spans if "team_name" in span.get("class", [])]
+    locations = [span.get_text(strip=True) for span in spans if "team_name_line_2" in span.get("class", [])]
+    scores = [span.get_text(strip=True) for span in spans if "fixture_result" in span.get("class", [])]
+    challengers = [span for span in spans if "challenger" in span.get("class", [])]
+
+    # Find which team is challenger by seeing where the challenger span is positioned
+    # Usually challenger span is near one of the teams
+
+    # By position, challenger span usually appears after the second team's name/location,
+    # but it might be inside <strong> tag so let’s check text near each team
+
+    # Because team_names and locations come in order, assume:
+    # team_names[0], locations[0] = team 1
+    # team_names[1], locations[1] = team 2
+
+    # Determine challenger side:
+    challenger_side = None
+    # We try to find if challenger text is closer to first or second team
+    # Let's get all texts inside <p> split by line breaks and find indices of challenger and team names
+
+    p_texts = [str(elem).strip() for elem in p.contents if isinstance(elem, (str,)) or (hasattr(elem, 'name') and elem.name != 'br')]
+
+    # But since contents may be mixed, safer approach is to see which team the challenger span is closest to by tag order
+    # Alternatively, just check if "challenger" span appears after first team_name spans or second
+
+    # We can locate the challenger span inside p, then find nearest preceding team_name span
+
+    # Locate challenger span index among spans
+    challenger_index = None
+    for i, span in enumerate(spans):
+        if "challenger" in span.get("class", []):
+            challenger_index = i
+            break
+
+    # Now find indices of team_name spans
+    team_name_indices = [i for i, span in enumerate(spans) if "team_name" in span.get("class", [])]
+
+    # Determine which team_name span is closest but before challenger span
+    challenger_side_idx = None
+    if challenger_index is not None:
+        # Find closest team_name index less than challenger_index
+        possible_teams = [idx for idx in team_name_indices if idx < challenger_index]
+        if possible_teams:
+            challenger_side_idx = max(possible_teams)
+        else:
+            challenger_side_idx = team_name_indices[0] if team_name_indices else None
+
+    # Based on that, challenger is:
+    # If challenger_side_idx corresponds to team_names index 0 or 1
+
+    # Map span index to team index:
+    # team_name_indices list is ordered, so challenger_side_idx corresponds to team index by position
+    if challenger_side_idx is not None and len(team_name_indices) >= 2:
+        if challenger_side_idx == team_name_indices[0]:
+            challenger_team = 0
+            opponent_team = 1
+        elif challenger_side_idx == team_name_indices[1]:
+            challenger_team = 1
+            opponent_team = 0
+        else:
+            challenger_team = 0
+            opponent_team = 1
+    else:
+        challenger_team = 0
+        opponent_team = 1
+
+    # Score might be text like "21 - 20", "V", "W/O", etc.
+    # There may be multiple fixture_result spans but usually one main score - pick the first or the one with dash
+
+    score_text = None
+    for score in scores:
+        if "-" in score or score.upper() in ["V", "W/O"]:
+            score_text = score
+            break
+    if not score_text and scores:
+        score_text = scores[0]
+
+    # Try to find Ends info - it's inside <small><b>Ends: XX</b></small> or may be missing
+    ends_text = "N/A"
+    ends_tag = p.find("small")
+    if ends_tag:
+        ends_text = ends_tag.get_text(strip=True)
+        # Clean to just get the number after "Ends: "
+        if ends_text.lower().startswith("ends:"):
+            ends_text = ends_text.split(":")[1].strip()
+
+    # Compose final dict
     return {
-        "Challenger": names[challenger_idx_final],
-        "From (C)": locations[challenger_idx_final],
-        "Opponent": names[1 - challenger_idx_final],
-        "From (O)": locations[1 - challenger_idx_final],
-        "Score": result_text,
+        "Challenger": team_names[challenger_team] if len(team_names) > challenger_team else "N/A",
+        "From (C)": locations[challenger_team] if len(locations) > challenger_team else "N/A",
+        "Opponent": team_names[opponent_team] if len(team_names) > opponent_team else "N/A",
+        "From (O)": locations[opponent_team] if len(locations) > opponent_team else "N/A",
+        "Score": score_text or "N/A",
         "Ends": ends_text
     }
+
 
 
 # MAIN UI FLOW
