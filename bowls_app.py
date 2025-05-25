@@ -95,7 +95,7 @@ def reverse_score(score):
 
 def parse_matchup_html(td):
     """
-    Extracts challenger, opponent, score, and ends from a <td> BeautifulSoup element.
+    Extract challenger, opponent, score, and ends from a <td> BeautifulSoup element.
     """
     spans = td.find_all("span")
 
@@ -104,29 +104,42 @@ def parse_matchup_html(td):
     result_text = next((s.get_text(strip=True) for s in spans if "fixture_result" in s.get("class", [])), "")
     ends_text = next((s.get_text(strip=True) for s in spans if "ends" in s.get("class", [])), None)
 
-    # Identify challenger
+    midpoint = len(spans) // 2
     challenger_idx = None
     for i, span in enumerate(spans):
         if "challenger" in span.get("class", []):
-            # Challenger comes after their name/location in markup
-            challenger_idx = 1 if i > spans.index(spans[-1]) // 2 else 0
+            challenger_idx = 1 if i > midpoint else 0
             break
 
-    # If challenger isn't marked, default to second player
     if challenger_idx is None:
         challenger_idx = 1
 
     opponent_idx = 1 - challenger_idx
 
-    # Format the output
+    # Safety checks
+    if len(names) < 2 or len(locations) < 2:
+        return {
+            "Challenger": "N/A",
+            "From (C)": "N/A",
+            "Opponent": "N/A",
+            "From (O)": "N/A",
+            "Score": "N/A",
+            "Ends": "N/A"
+        }
+
+    # Normalize score text
+    if "-" not in result_text:
+        result_text = "No Score"
+
     return {
         "Challenger": names[challenger_idx],
         "From (C)": locations[challenger_idx],
         "Opponent": names[opponent_idx],
         "From (O)": locations[opponent_idx],
-        "Score": result_text if "-" in result_text else "No Score",
+        "Score": result_text,
         "Ends": ends_text or "N/A"
     }
+
 
 
 # MAIN UI FLOW
