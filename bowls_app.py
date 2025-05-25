@@ -176,7 +176,7 @@ if comps:
                         if td:
                             parsed_data.append(parse_matchup_html(td))
 
-                parsed_df = pd.DataFrame(parsed_data.tolist())
+                parsed_df = pd.DataFrame(parsed_data)
                 st.dataframe(parsed_df.style.set_properties(**{'text-align': 'left'}), use_container_width=True)
             else:
                 st.warning(f"No data available for round: {selected_round}")
