@@ -54,14 +54,7 @@ def parse_matchup_html(cell_html):
     soup = BeautifulSoup(cell_html, "html.parser")
     p = soup.find("p")
     if not p:
-        return {
-            "Challenger": "N/A",
-            "From (C)": "N/A",
-            "Opponent": "N/A",
-            "From (O)": "N/A",
-            "Score": "N/A",
-            "Ends": "N/A"
-        }
+        return None
 
     spans = p.find_all("span")
     team_names = [s.get_text(strip=True) for s in spans if "team_name" in s.get("class", [])]
@@ -70,6 +63,13 @@ def parse_matchup_html(cell_html):
     challenger_index = next((i for i, s in enumerate(spans) if "challenger" in s.get("class", [])), None)
     team_name_indices = [i for i, s in enumerate(spans) if "team_name" in s.get("class", [])]
 
+    # Check if we have valid teams
+    if len(team_names) < 2:
+        return None
+    if all(name.upper() == "TBC" for name in team_names):
+        return None
+
+    # Determine challenger/opponent
     challenger_team = 0
     opponent_team = 1
     if challenger_index is not None and len(team_name_indices) >= 2:
@@ -83,13 +83,14 @@ def parse_matchup_html(cell_html):
         ends_text = ends_tag.get_text(strip=True).split(":")[-1].strip()
 
     return {
-        "Challenger": team_names[challenger_team] if len(team_names) > challenger_team else "N/A",
+        "Challenger": team_names[challenger_team],
         "From (C)": locations[challenger_team] if len(locations) > challenger_team else "N/A",
-        "Opponent": team_names[opponent_team] if len(team_names) > opponent_team else "N/A",
+        "Opponent": team_names[opponent_team],
         "From (O)": locations[opponent_team] if len(locations) > opponent_team else "N/A",
         "Score": scores[0] if scores else "N/A",
         "Ends": ends_text
     }
+
 
 # === STREAMLIT UI ===
 
@@ -114,12 +115,12 @@ results_df, round_headers = fetch_results(comp_id, county_id)
 if results_df is not None:
     round_choice = st.selectbox("Select Round", round_headers[1:])
     parsed_data = []
-
-    st.markdown("### 📋 Match Results")
     for i, raw_html in enumerate(results_df[round_choice]):
         if pd.notna(raw_html):
             parsed = parse_matchup_html(raw_html)
-            parsed_data.append(parsed)
+            if parsed:  # Skip None returns
+                parsed_data.append(parsed)
+
 
     parsed_df = pd.DataFrame(parsed_data)
 
