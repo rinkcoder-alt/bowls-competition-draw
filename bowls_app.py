@@ -235,31 +235,19 @@ if comps:
             selected_round = st.selectbox("Select Round", rounds[::-1])
             if selected_round in results_df.columns:
                 parsed_data = []
-                for _, row in results_df.iterrows():
-                    raw_html = row[selected_round]
-                    if pd.notna(raw_html):
-                        soup = BeautifulSoup(raw_html, "html.parser")
-                        td = soup.find("td")
-                        if td:
-                            parsed_data.append(parse_matchup_html(td))
-                        else:
-                            parsed_data.append({
-                                "Challenger": "N/A",
-                                "From (C)": "N/A",
-                                "Opponent": "N/A",
-                                "From (O)": "N/A",
-                                "Score": "N/A",
-                                "Ends": "N/A"
-                            })
-                    else:
-                        parsed_data.append({
-                            "Challenger": "N/A",
-                            "From (C)": "N/A",
-                            "Opponent": "N/A",
-                            "From (O)": "N/A",
-                            "Score": "N/A",
-                            "Ends": "N/A"
-                        })
+            for _, row in results_df.iterrows():
+                raw_html = row[selected_round]
+                if pd.notna(raw_html):
+                    parsed_data.append(parse_matchup_html(raw_html))
+                else:
+                    parsed_data.append({
+                        "Challenger": "N/A",
+                        "From (C)": "N/A",
+                        "Opponent": "N/A",
+                        "From (O)": "N/A",
+                        "Score": "N/A",
+                        "Ends": "N/A"
+                    })
 
                 parsed_df = pd.DataFrame(parsed_data)
                 st.dataframe(parsed_df.style.set_properties(**{'text-align': 'left'}), use_container_width=True)
