@@ -17,10 +17,7 @@ season_map = {
     "2024": "5",
     "2025": "6"
 }
-
 available_seasons = list(season_map.keys())
-
-# Default to current year
 current_year = datetime.now().year
 default_season = str(current_year) if str(current_year) in available_seasons else available_seasons[-1]
 
@@ -32,8 +29,11 @@ stage_id = "1" if stage_name == "Early Stages" else "2"
 
 @st.cache_data(show_spinner=False)
 def fetch_competitions(season_id, stage_id):
+    """Fetch a dictionary of competition names and their URLs for a given season and stage."""
     url = f"https://bowlsenglandcomps.com/season/{season_id}/{stage_id}"
     res = requests.get(url)
+    if res.status_code != 200:
+        return {}
     soup = BeautifulSoup(res.text, "html.parser")
     comp_links = soup.find_all("a", href=True)
     comps = {}
@@ -49,7 +49,10 @@ def fetch_competitions(season_id, stage_id):
 
 @st.cache_data(show_spinner=False)
 def fetch_counties(competition_url):
+    """Fetch a dictionary of counties and their IDs from a given competition URL."""
     res = requests.get(competition_url)
+    if res.status_code != 200:
+        return {}
     soup = BeautifulSoup(res.text, "html.parser")
     county_links = soup.find_all("a", class_="area-fixture-link")
     counties = {}
@@ -61,7 +64,10 @@ def fetch_counties(competition_url):
 
 @st.cache_data(show_spinner=False)
 def fetch_results(competition_url):
+    """Fetch results table data and round headers from a county-specific competition URL."""
     res = requests.get(competition_url)
+    if res.status_code != 200:
+        return None, None
     soup = BeautifulSoup(res.text, "html.parser")
     table = soup.find("table", class_="table")
     if table:
@@ -75,133 +81,98 @@ def fetch_results(competition_url):
     return None, None
 
 def extract_name_and_location(text):
+    """Extracts and returns the name and location from a string formatted as 'Name (Location)'."""
     name = text.split('(')[0].strip()
     location = text[text.find('(')+1:text.rfind(')')].strip()
     return name, location
 
-def parse_matchup(matchup):
-    original_text = matchup  # Keep the original text for debugging
-
-    # First, extract and save the 'Ends:' value (if it exists)
-    ends_match = re.search(r"Ends:\s*(\d+)", matchup)
-    ends = "N/A"
-    if ends_match:
-        ends = ends_match.group(1)
-        # Remove the 'Ends' part from the matchup string
-        matchup = re.sub(r"Ends:\s*\d+", "", matchup)
-
-    # Extract the score (if it exists) but do not remove it
-    score_match = re.search(r"(\d+)\s*-\s*(\d+)", matchup)
-    score = "No Score"
-    if score_match:
-        score = f"{score_match.group(1)} - {score_match.group(2)}"
-
-    # Now, depending on the presence of the score, we split
-    if score != "No Score":
-
-
-        # Split by score first (if score exists) and keep the score
-        parts = matchup.split(score, 1)
-    elif "V" in matchup:
-        # If there's no score, use 'V' as delimiter
-        parts = re.split(r"\)V", matchup, 1)
-
-    # Clean up the parts
-        part_1 = parts[0].strip() + ")"
-        part_2 = parts[1].strip()
-
-
-
-    elif "W/O" in matchup:
-        # If there's no score and no 'V', use 'W/O' as delimiter (Walkover)
-        parts = matchup.split("W/O", 1)
-    else:
-        # If none of the above, it's an invalid format
-        return {"Full Text": original_text, "Challenger": "Invalid", "From (C)": "Invalid", "Opponent": "Invalid", "From (O)": "Invalid", "Score": "Invalid", "Ends": "Invalid"}
-
-    # Clean up the parts and ensure both parts exist
-    part_1 = parts[0].strip()
-    part_2 = parts[1].strip() if len(parts) > 1 else ""
-
-    # Identify the Challenger and Opponent
-    clean_part_1 = part_1.replace("(Challenger)", "").strip()
-    clean_part_2 = part_2.replace("(Challenger)", "").strip()
-
-    if "(Challenger)" in part_1:
-        challenger = clean_part_1.split('(')[0].strip()
-        from_challenger = clean_part_1[clean_part_1.find('(')+1 : clean_part_1.rfind(')')].strip()
-        if "BYE" not in part_2:
-            opponent = clean_part_2.split('(')[0].strip()
-            from_opponent = clean_part_2[clean_part_2.find('(')+1 : clean_part_2.rfind(')')].strip()
-        else:
-            opponent = "BYE"
-            from_opponent = "N/A"
-
-    elif "(Challenger)" in part_2:
-        if "BYE" not in part_2:
-            challenger = clean_part_2.split('(')[0].strip()
-            from_challenger = clean_part_2[clean_part_2.find('(')+1 : clean_part_2.rfind(')')].strip()
-            opponent = clean_part_1.split('(')[0].strip()
-            from_opponent = clean_part_1[clean_part_1.find('(')+1 : clean_part_1.rfind(')')].strip()
-        else:
-            challenger = clean_part_2.split('(')[0].strip()
-            from_challenger = clean_part_1[clean_part_1.find('(')+1 : clean_part_1.rfind(')')].strip()
-            opponent = "BYE"
-            from_opponent = "N/A"
-
-    else:
-        # If no challenger marked, assume left side is opponent and right side is challenger
-        opponent = clean_part_1.split('(')[0].strip()
-        from_opponent = clean_part_1[clean_part_1.find('(')+1 : clean_part_1.rfind(')')].strip()
-        challenger = clean_part_2.split('(')[0].strip()
-        from_challenger = clean_part_2[clean_part_2.find('(')+1 : clean_part_2.rfind(')')].strip()
-
-
-    # Reverse the score if the challenger is in the second part
-    if "(Challenger)" in part_2 and score != "No Score":
-        score = reverse_score(score)
-
-    return {
-        #"Full Text": original_text,
-        "Challenger": challenger,
-        "From (C)": from_challenger,
-        "Opponent": opponent,
-        "From (O)": from_opponent,
-        "Score": score,
-        "Ends": ends
-    }
-
 def reverse_score(score):
-    """Reverse the score if the challenger is in the second part of the string."""
+    """Reverses a score string from 'X - Y' to 'Y - X'."""
     if score != "No Score":
         parts = score.split(" - ")
         return f"{parts[1]} - {parts[0]}"
     return score
 
-comps = fetch_competitions(season_id, stage_id)
+def parse_matchup(text):
+    """Parses a match string and extracts challenger, opponent, score, and ends information."""
+    original = text
+    ends = re.search(r"Ends:\s*(\d+)", text)
+    ends_val = ends.group(1) if ends else "N/A"
+    text = re.sub(r"Ends:\s*\d+", "", text)
+
+    score_match = re.search(r"(\d+)\s*-\s*(\d+)", text)
+    score_val = f"{score_match.group(1)} - {score_match.group(2)}" if score_match else "No Score"
+
+    splitters = [score_val, "V", "W/O"]
+    for splitter in splitters:
+        if splitter in text:
+            parts = text.split(splitter)
+            if len(parts) == 2:
+                part1, part2 = parts
+                break
+    else:
+        return {
+            "Challenger": "Invalid", "From (C)": "Invalid",
+            "Opponent": "Invalid", "From (O)": "Invalid",
+            "Score": "Invalid", "Ends": "Invalid"
+        }
+
+    def clean_part(part):
+        part = part.replace("(Challenger)", "").strip()
+        return extract_name_and_location(part)
+
+    if "(Challenger)" in part1:
+        challenger, from_c = clean_part(part1)
+        if "BYE" in part2:
+            opponent, from_o = "BYE", "N/A"
+        else:
+            opponent, from_o = clean_part(part2)
+    elif "(Challenger)" in part2:
+        challenger, from_c = clean_part(part2)
+        opponent, from_o = clean_part(part1)
+        if score_val != "No Score":
+            score_val = reverse_score(score_val)
+    else:
+        opponent, from_o = clean_part(part1)
+        challenger, from_c = clean_part(part2)
+
+    return {
+        "Challenger": challenger,
+        "From (C)": from_c,
+        "Opponent": opponent,
+        "From (O)": from_o,
+        "Score": score_val,
+        "Ends": ends_val
+    }
+
+# MAIN UI FLOW
+with st.spinner("Fetching competitions..."):
+    comps = fetch_competitions(season_id, stage_id)
 
 if comps:
     selected_comp = st.selectbox("Select Competition", list(comps.keys()))
     selected_comp_id, selected_comp_url = comps[selected_comp]
 
-    counties = fetch_counties(selected_comp_url)
+    with st.spinner("Fetching counties..."):
+        counties = fetch_counties(selected_comp_url)
 
     if counties:
         selected_county = st.selectbox("Select County", list(counties.keys()))
         selected_county_id = counties[selected_county]
 
         final_url = f"https://bowlsenglandcomps.com/competition/area-fixture/{selected_comp_id}/{selected_county_id}"
-        results_df, rounds = fetch_results(final_url)
+        with st.spinner("Fetching results..."):
+            results_df, rounds = fetch_results(final_url)
 
         st.markdown(f"[🔗 View on Bowls England]({final_url})")
 
         if results_df is not None and rounds:
-            selected_round = st.selectbox("Select Round", rounds)
+            selected_round = st.selectbox("Select Round", rounds[::-1])
             if selected_round in results_df.columns:
                 selected_column = results_df[selected_round].dropna()
                 parsed_data = selected_column.apply(parse_matchup)
                 parsed_df = pd.DataFrame(parsed_data.tolist())
-                st.dataframe(parsed_df)
+                st.dataframe(parsed_df.style.set_properties(**{'text-align': 'left'}), use_container_width=True)
             else:
                 st.warning(f"No data available for round: {selected_round}")
         else:
