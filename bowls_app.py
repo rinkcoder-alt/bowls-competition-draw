@@ -93,57 +93,41 @@ def reverse_score(score):
         return f"{parts[1]} - {parts[0]}"
     return score
 
-def parse_matchup(text):
-    """Parses a match string and extracts challenger, opponent, score, and ends information."""
-    original = text
-    ends = re.search(r"Ends:\s*(\d+)", text)
-    ends_val = ends.group(1) if ends else "N/A"
-    text = re.sub(r"Ends:\s*\d+", "", text)
+def parse_matchup_html(td):
+    """
+    Extracts challenger, opponent, score, and ends from a <td> BeautifulSoup element.
+    """
+    spans = td.find_all("span")
 
-    score_match = re.search(r"(\d+)\s*-\s*(\d+)", text)
-    score_val = f"{score_match.group(1)} - {score_match.group(2)}" if score_match else "No Score"
+    names = [s.get_text(strip=True) for s in spans if "team_name" in s.get("class", [])]
+    locations = [s.get_text(strip=True) for s in spans if "team_name_line_2" in s.get("class", [])]
+    result_text = next((s.get_text(strip=True) for s in spans if "fixture_result" in s.get("class", [])), "")
+    ends_text = next((s.get_text(strip=True) for s in spans if "ends" in s.get("class", [])), None)
 
-    splitters = [score_val, "V", "W/O"]
-    for splitter in splitters:
-        if splitter in text:
-            parts = text.split(splitter)
-            if len(parts) == 2:
-                part1, part2 = parts
-                break
-    else:
-        return {
-            "Challenger": "Invalid", "From (C)": "Invalid",
-            "Opponent": "Invalid", "From (O)": "Invalid",
-            "Score": "Invalid", "Ends": "Invalid"
-        }
+    # Identify challenger
+    challenger_idx = None
+    for i, span in enumerate(spans):
+        if "challenger" in span.get("class", []):
+            # Challenger comes after their name/location in markup
+            challenger_idx = 1 if i > spans.index(spans[-1]) // 2 else 0
+            break
 
-    def clean_part(part):
-        part = part.replace("(Challenger)", "").strip()
-        return extract_name_and_location(part)
+    # If challenger isn't marked, default to second player
+    if challenger_idx is None:
+        challenger_idx = 1
 
-    if "(Challenger)" in part1:
-        challenger, from_c = clean_part(part1)
-        if "BYE" in part2:
-            opponent, from_o = "BYE", "N/A"
-        else:
-            opponent, from_o = clean_part(part2)
-    elif "(Challenger)" in part2:
-        challenger, from_c = clean_part(part2)
-        opponent, from_o = clean_part(part1)
-        if score_val != "No Score":
-            score_val = reverse_score(score_val)
-    else:
-        opponent, from_o = clean_part(part1)
-        challenger, from_c = clean_part(part2)
+    opponent_idx = 1 - challenger_idx
 
+    # Format the output
     return {
-        "Challenger": challenger,
-        "From (C)": from_c,
-        "Opponent": opponent,
-        "From (O)": from_o,
-        "Score": score_val,
-        "Ends": ends_val
+        "Challenger": names[challenger_idx],
+        "From (C)": locations[challenger_idx],
+        "Opponent": names[opponent_idx],
+        "From (O)": locations[opponent_idx],
+        "Score": result_text if "-" in result_text else "No Score",
+        "Ends": ends_text or "N/A"
     }
+
 
 # MAIN UI FLOW
 with st.spinner("Fetching competitions..."):
@@ -170,7 +154,15 @@ if comps:
             selected_round = st.selectbox("Select Round", rounds[::-1])
             if selected_round in results_df.columns:
                 selected_column = results_df[selected_round].dropna()
-                parsed_data = selected_column.apply(parse_matchup)
+                parsed_data = []
+                for _, row in results_df.iterrows():
+                    raw_html = row[selected_round]
+                    if pd.notna(raw_html):
+                        soup = BeautifulSoup(raw_html, "html.parser")
+                        td = soup.find("td")
+                        if td:
+                            parsed_data.append(parse_matchup_html(td))
+
                 parsed_df = pd.DataFrame(parsed_data.tolist())
                 st.dataframe(parsed_df.style.set_properties(**{'text-align': 'left'}), use_container_width=True)
             else:
